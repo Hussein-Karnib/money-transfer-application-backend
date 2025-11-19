@@ -1,0 +1,40 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+
+class Transfer extends Model
+{
+    protected $fillable = [
+        'sender_id','beneficiary_id','amount',
+        'currency_from','currency_to','exchange_rate',
+        'fee','total_amount','status',
+        'initiated_at','completed_at','reference',
+    ];
+
+    protected $casts = [
+        'initiated_at' => 'datetime',
+        'completed_at' => 'datetime',
+    ];
+
+    public function sender()
+    {
+        return $this->belongsTo(User::class, 'sender_id');
+    }
+
+    public function beneficiary()
+    {
+        return $this->belongsTo(Beneficiary::class);
+    }
+
+    public function events()
+    {
+        return $this->hasMany(Transfer_Event::class);
+    }
+
+    public function payment()
+    {
+        return $this->hasOne(Payment::class);
+    }
+}
