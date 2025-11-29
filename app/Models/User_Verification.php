@@ -7,12 +7,16 @@ use Illuminate\Database\Eloquent\Model;
 class User_Verification extends Model
 {
     protected $fillable = [
-        'user_id','id_type','id_number','status','verified_at','documents',
+        'user_id',
+        'id_type',
+        'id_number',
+        'document_path',
+        'status',
+        'verified_at',
     ];
 
     protected $casts = [
         'verified_at' => 'datetime',
-        'documents'   => 'array',
     ];
 
     public function user()
