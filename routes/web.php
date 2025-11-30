@@ -6,6 +6,7 @@ use App\Http\Controllers\ReportController;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\AgentController;
 use App\Http\Controllers\AgentHourController;
+use App\Http\Controllers\AgentTransactionController;
 
 /*
 |--------------------------------------------------------------------------
@@ -29,6 +30,9 @@ Route::get('/agents/{agent}', [AgentController::class, 'show'])->name('agents.pu
 // --- Become a Partner (Registration) ---
 Route::get('/partner/register', [AgentController::class, 'create'])->name('agents.register');
 Route::post('/partner/register', [AgentController::class, 'store'])->name('agents.store');
+
+// --- Agent Map API (Public JSON endpoint) ---
+Route::get('/api/agents/map', [AgentController::class, 'map'])->name('api.agents.map');
 
 // --- Authentication (Laravel Breeze/Jetstream) ---
 require __DIR__.'/auth.php'; 
@@ -75,6 +79,15 @@ Route::middleware(['auth', 'role:agent'])->prefix('portal')->name('portal.')->gr
     Route::get('/my-store/{agent}/hours', [AgentHourController::class, 'index'])->name('hours.index');
     Route::get('/my-store/{agent}/hours/edit', [AgentHourController::class, 'edit'])->name('hours.edit');
     Route::put('/my-store/{agent}/hours', [AgentHourController::class, 'update'])->name('hours.update');
+
+    // --- Agent Transactions (Cash-in/Cash-out) ---
+    Route::get('/transactions/{agent}', [AgentTransactionController::class, 'index'])->name('transactions.index');
+    Route::get('/transactions/{agent}/create', [AgentTransactionController::class, 'create'])->name('transactions.create');
+    Route::post('/transactions/{agent}', [AgentTransactionController::class, 'store'])->name('transactions.store');
+    Route::get('/transactions/{agent}/{transaction}', [AgentTransactionController::class, 'show'])->name('transactions.show');
+
+    // --- Agent Commissions ---
+    Route::get('/commissions/{agent}', [AgentController::class, 'commissions'])->name('commissions.index');
 });
 
 

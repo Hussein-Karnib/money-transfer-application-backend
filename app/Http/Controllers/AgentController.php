@@ -7,6 +7,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rules;
 
 class AgentController extends Controller
@@ -147,5 +148,120 @@ class AgentController extends Controller
         // Optional: Delete the associated user as well?
         $agent->delete();
         return redirect()->route('agents.index')->with('success', 'Agent deleted.');
+    }
+
+    /**
+     * Public API endpoint for agent map.
+     * Returns approved agents with location data, optionally filtered by distance and open status.
+     */
+    public function map(Request $request)
+    {
+        $query = Agent::with(['user', 'hours'])
+            ->where('status', 'approved') // Only show approved agents
+            ->whereNotNull('latitude')
+            ->whereNotNull('longitude');
+
+        // Filter by distance if latitude, longitude, and radius provided
+        if ($request->has('latitude') && $request->has('longitude') && $request->has('radius')) {
+            $lat = $request->latitude;
+            $lng = $request->longitude;
+            $radius = $request->radius; // in kilometers
+
+            // Haversine formula for distance calculation
+            $query->selectRaw('*, (
+                6371 * acos(
+                    cos(radians(?)) * cos(radians(latitude)) *
+                    cos(radians(longitude) - radians(?)) +
+                    sin(radians(?)) * sin(radians(latitude))
+                )
+            ) AS distance', [$lat, $lng, $lat])
+            ->havingRaw('distance < ?', [$radius])
+            ->orderBy('distance');
+        }
+
+        // Filter by currently open agents
+        if ($request->boolean('open_now')) {
+            $currentDay = now()->dayOfWeek; // 0 = Sunday, 6 = Saturday
+            $currentTime = now()->format('H:i:s');
+
+            $query->whereHas('hours', function ($q) use ($currentDay, $currentTime) {
+                $q->where('day_of_week', $currentDay)
+                  ->where('open_time', '<=', $currentTime)
+                  ->where('close_time', '>=', $currentTime);
+            });
+        }
+
+        $agents = $query->get()->map(function ($agent) {
+            return [
+                'id' => $agent->id,
+                'store_name' => $agent->store_name,
+                'address' => $agent->address,
+                'latitude' => (float) $agent->latitude,
+                'longitude' => (float) $agent->longitude,
+                'owner_name' => $agent->user->name,
+                'hours' => $agent->hours->map(function ($hour) {
+                    $days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                    return [
+                        'day' => $days[$hour->day_of_week],
+                        'open_time' => $hour->open_time,
+                        'close_time' => $hour->close_time,
+                    ];
+                }),
+                'distance' => $agent->distance ?? null,
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'data' => $agents,
+            'count' => $agents->count(),
+        ]);
+    }
+
+    /**
+     * Display commission report for an agent.
+     */
+    public function commissions(Request $request, Agent $agent)
+    {
+        // Security: Ensure the logged-in user owns this agent profile
+        if (Auth::id() !== $agent->user_id) {
+            abort(403, 'Unauthorized access to commission records.');
+        }
+
+        $query = $agent->transactions();
+
+        // Filter by date range if provided
+        if ($request->has('from')) {
+            $query->whereDate('processed_at', '>=', $request->from);
+        }
+        if ($request->has('to')) {
+            $query->whereDate('processed_at', '<=', $request->to);
+        }
+
+        $transactions = $query->with('transfer')
+            ->latest('processed_at')
+            ->paginate(20);
+
+        // Calculate totals
+        $totalCommission = $agent->transactions()->sum('commission');
+        $monthlyCommission = $agent->transactions()
+            ->whereYear('processed_at', now()->year)
+            ->whereMonth('processed_at', now()->month)
+            ->sum('commission');
+        $todayCommission = $agent->transactions()
+            ->whereDate('processed_at', today())
+            ->sum('commission');
+
+        // Filtered totals
+        $filteredCommission = $query->sum('commission');
+
+        return view('portal.commissions', compact(
+            'agent',
+            'transactions',
+            'totalCommission',
+            'monthlyCommission',
+            'todayCommission',
+            'filteredCommission'
+        ));
     }
 }
