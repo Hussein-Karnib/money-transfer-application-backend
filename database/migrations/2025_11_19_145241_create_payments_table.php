@@ -12,7 +12,7 @@ return new class extends Migration
             $table->foreignId('transfer_id')->constrained('transfers')->cascadeOnDelete();
             $table->decimal('amount', 18, 2);
             $table->string('currency_code', 3);
-            $table->string('gateway');     // stripe, checkout, etc.
+            $table->string('gateway');     
             $table->string('gateway_ref')->nullable();
             $table->enum('status', ['authorized','captured','failed','refunded'])->default('authorized');
             $table->timestamp('authorized_at')->nullable();

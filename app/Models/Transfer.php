@@ -37,4 +37,20 @@ class Transfer extends Model
     {
         return $this->hasOne(Payment::class);
     }
+
+    public function currencyFrom()
+    {
+        return $this->belongsTo(Currency::class, 'currency_from', 'code');
+    }
+
+    public function currencyTo()
+    {
+        return $this->belongsTo(Currency::class, 'currency_to', 'code');
+    }
+
+    public function exchangeRateRecord()
+    {
+        return $this->hasOne(Exchange_Rate::class, 'currency_from', 'currency_from')
+            ->whereColumn('exchange_rates.currency_to', 'transfers.currency_to');
+    }
 }

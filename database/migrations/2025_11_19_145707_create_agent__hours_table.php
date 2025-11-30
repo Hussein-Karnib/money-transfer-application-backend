@@ -9,7 +9,7 @@ return new class extends Migration
     {
         Schema::create('agent_hours', function (Blueprint $table) {
             $table->foreignId('agent_id')->constrained('agents')->cascadeOnDelete();
-            $table->unsignedTinyInteger('day_of_week'); // 0–6
+            $table->unsignedTinyInteger('day_of_week'); 
             $table->time('open_time');
             $table->time('close_time');
             $table->primary(['agent_id','day_of_week']);
