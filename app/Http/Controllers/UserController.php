@@ -34,4 +34,9 @@ class UserController extends Controller
 
         return response()->json($user);
     }
+
+    public function me(Request $request)
+    {
+        return response()->json($request->user());
+    }
 }

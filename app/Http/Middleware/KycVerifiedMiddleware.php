@@ -11,7 +11,7 @@ class KycVerifiedMiddleware
     {
         $user = $request->user();
 
-        $isVerified = $user->verifications()
+        $isVerified = $user?->verifications()
             ->where('status', 'approved')
             ->exists();
 
