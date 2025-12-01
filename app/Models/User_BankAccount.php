@@ -11,14 +11,15 @@ class User_BankAccount extends Model
         'bank_name',
         'account_number',
         'currency_code',
-        'is_default',
-        'verified',
+        'status',
+        'verified_at',
     ];
 
     protected $casts = [
-        'is_default' => 'boolean',
-        'verified'   => 'boolean',
+        'verified_at' => 'datetime',
     ];
+
+    protected $table = 'user_bank_accounts';
 
     public function user()
     {
