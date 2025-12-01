@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Dashboard</title>
+    <title>Admin Statistics</title>
     <style>
         body {
             font-family: sans-serif;
@@ -45,23 +45,8 @@
 
         .nav-links a:hover {
             background-color: silver;
-            color: blue;        }
-        
-        .logout-btn {
-            background: none;
-            border: none;
-            color: white;
-            cursor: pointer;
-            padding: 10px;
-            text-align: left;
-            width: 100%;
+            color: blue;
         }
-        
-        .logout-btn:hover {
-             background-color: silver;
-             color: blue;
-        }
-
 
         .header {
             display: flex;
@@ -71,35 +56,33 @@
             background: white;
             padding: 20px;
             border: 1px solid gray;
-
         }
 
         .user-info {
             font-weight: bold;
         }
 
-        .dashboard-cards {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
-        }
-
-        .card {
+        table {
+            width: 100%;
+            border-collapse: collapse;
             background: white;
-            padding: 20px;
             border: 1px solid black;
-         text-align: center;
         }
 
-        .card h3 {
-            margin-top: 0;
+        th, td {
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid gray;
+        }
+
+        th {
+            background-color: silver;
+            font-weight: bold;
             color: black;
         }
 
-        .card .number {
-            font-weight: bold;
-            color: blue;
-            margin: 10px;
+        tr:hover {
+            background-color: silver;
         }
     </style>
 </head>
@@ -123,34 +106,46 @@
 
     <div class="main-content">
         <div class="header">
-            <h1>Dashboard</h1>
+            <h1>Statistics</h1>
             <div class="user-info">
                 Welcome
             </div>
         </div>
 
-        <div class="dashboard-cards">
-            <div class="card">
-                <h3>Total Agents</h3>
-                <div class="number">{{ $data['active_agents_count'] }}</div>
-                <p>Active agents</p>
-            </div>
-            <div class="card">
-                <h3>Transactions</h3>
-                <div class="number">{{ $data['total_transactions_count'] }}</div>
-                <p>Completed transfers</p>
-            </div>
-            <div class="card">
-                <h3>Pending Approvals</h3>
-                <div class="number">{{ $data['pending_approvals_count'] }}</div>
-                <p>Agents pending</p>
-            </div>
-            <div class="card">
-                <h3>System Alerts</h3>
-                <div class="number">0</div>
-                <p>Requires attention</p>
-            </div>
-        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Metric</th>
+                    <th>Value</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Total Users</td>
+                    <td>{{ $data['users_count'] }}</td>
+                </tr>
+                <tr>
+                    <td>Verified Users</td>
+                    <td>{{ $data['verified_users_count'] }}</td>
+                </tr>
+                <tr>
+                    <td>Total Agents</td>
+                    <td>{{ $data['agents_count'] }}</td>
+                </tr>
+                <tr>
+                    <td>Pending Agents</td>
+                    <td>{{ $data['pending_agents_count'] }}</td>
+                </tr>
+                <tr>
+                    <td>Total Transfers</td>
+                    <td>{{ $data['transfers_count'] }}</td>
+                </tr>
+                <tr>
+                    <td>Total Transfer Volume</td>
+                    <td>{{ $data['total_transfer_volume'] }}</td>
+                </tr>
+            </tbody>
+        </table>
     </div>
 
 </body>

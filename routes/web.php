@@ -6,6 +6,7 @@ use App\Http\Controllers\ReportController;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\AgentController;
 use App\Http\Controllers\AgentHourController;
+use App\Http\Controllers\StatisticController;
 
 /*
 |--------------------------------------------------------------------------
@@ -31,7 +32,7 @@ Route::get('/partner/register', [AgentController::class, 'create'])->name('agent
 Route::post('/partner/register', [AgentController::class, 'store'])->name('agents.store');
 
 // --- Authentication (Laravel Breeze/Jetstream) ---
-require __DIR__.'/auth.php'; 
+// require __DIR__.'/auth.php'; 
 
 
 // ========================================================================
@@ -42,9 +43,8 @@ require __DIR__.'/auth.php';
 Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->group(function () {
     
     // --- Dashboard ---
-    Route::get('/dashboard', function () {
-        return view('admin.dashboard');
-    })->name('dashboard');
+    // --- Dashboard ---
+    Route::get('/dashboard', [StatisticController::class, 'dashboard'])->name('dashboard');
 
     // --- Manage System Admins ---
     Route::resource('admins', AdminController::class);
@@ -61,6 +61,9 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->grou
     Route::get('/agents', [AgentController::class, 'index'])->name('agents.index'); // List view
     Route::patch('/agents/{agent}/status', [AgentController::class, 'updateStatus'])->name('agents.update_status'); // Approve/Suspend
     Route::delete('/agents/{agent}', [AgentController::class, 'destroy'])->name('agents.destroy'); // Delete Agent
+
+    // --- Statistics ---
+    Route::get('/statistics', [StatisticController::class, 'statistic'])->name('statistics');
 });
 
 
