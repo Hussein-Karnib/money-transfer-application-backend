@@ -11,6 +11,8 @@ class Agent_Transaction extends Model
     ];
 
     protected $casts = [
+        'amount' => 'decimal:2',
+        'commission' => 'decimal:2',
         'processed_at' => 'datetime',
     ];
 
