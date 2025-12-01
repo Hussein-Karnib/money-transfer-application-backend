@@ -11,6 +11,10 @@ use App\Http\Controllers\TransferController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\TransferEventController;
 use App\Http\Controllers\TransferFeeController;
+use App\Http\Controllers\AuthController;
+use App\Http\Controllers\UserVerificationController;
+use App\Http\Controllers\UserController;
+
 
 /*
 |--------------------------------------------------------------------------
@@ -116,3 +120,35 @@ Route::middleware(['auth', 'throttle:api'])->group(function () {
     });
 });
 
+
+// Social Login
+Route::post('/auth/social', [AuthController::class, 'socialLogin']);
+
+
+// PUBLIC: auth
+Route::post('/auth/register', [AuthController::class, 'register']);
+Route::post('/auth/login',    [AuthController::class, 'login']);
+Route::post('/auth/social',   [AuthController::class, 'socialLogin']);
+
+// PROTECTED: need login
+Route::middleware('auth:sanctum')->group(function () {
+
+    Route::post('/auth/logout', [AuthController::class, 'logout']);
+
+    // Profile
+    Route::get('/me',  [UserController::class, 'me']);
+    Route::put('/me',  [UserController::class, 'update']);
+
+    // KYC (any logged-in user can submit their own KYC)
+    Route::post('/kyc', [UserVerificationController::class, 'store']);
+    Route::get('/kyc',  [UserVerificationController::class, 'show']);
+
+    // Bank accounts require verified KYC
+    Route::middleware('kyc_verified')->group(function () {
+        Route::get('/bank-accounts',        [UserBankAccountController::class, 'index']);
+        Route::post('/bank-accounts',       [UserBankAccountController::class, 'store']);
+        Route::get('/bank-accounts/{id}',   [UserBankAccountController::class, 'show']);
+        Route::put('/bank-accounts/{id}',   [UserBankAccountController::class, 'update']);
+        Route::delete('/bank-accounts/{id}',[UserBankAccountController::class, 'destroy']);
+    });
+});
