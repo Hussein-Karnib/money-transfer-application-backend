@@ -1,8 +1,6 @@
 <?php
-
 namespace App\Http\Controllers;
-
-use App\Models\User_BankAccount;
+use App\Models\UserBankAccount;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -12,7 +10,7 @@ class UserBankAccountController extends Controller
  
     public function index(): JsonResponse
     {
-        $accounts = User_BankAccount::where('user_id', Auth::id())
+        $accounts = UserBankAccount::where('user_id', Auth::id())
             ->with('currency')
             ->get();
 
@@ -32,7 +30,7 @@ class UserBankAccountController extends Controller
             'currency_code' => ['required', 'string', 'size:3', 'exists:currencies,code'],
         ]);
 
-        $account = User_BankAccount::create([
+        $account = UserBankAccount::create([
             'user_id' => Auth::id(),
             'bank_name' => $request->bank_name,
             'account_number' => $request->account_number,
@@ -50,7 +48,7 @@ class UserBankAccountController extends Controller
  
     public function show(int $id): JsonResponse
     {
-        $account = User_BankAccount::where('id', $id)
+        $account = UserBankAccount::where('id', $id)
             ->where('user_id', Auth::id())
             ->with('currency')
             ->firstOrFail();
@@ -64,7 +62,7 @@ class UserBankAccountController extends Controller
    
     public function update(Request $request, int $id): JsonResponse
     {
-        $account = User_BankAccount::where('id', $id)
+        $account = UserBankAccount::where('id', $id)
             ->where('user_id', Auth::id())
             ->firstOrFail();
 
@@ -85,7 +83,7 @@ class UserBankAccountController extends Controller
 
     public function destroy(int $id): JsonResponse
     {
-        $account = User_BankAccount::where('id', $id)
+        $account = UserBankAccount::where('id', $id)
             ->where('user_id', Auth::id())
             ->firstOrFail();
 
@@ -101,7 +99,7 @@ class UserBankAccountController extends Controller
     public function verify(Request $request, int $id): JsonResponse
     {
        
-        $account = User_BankAccount::findOrFail($id);
+        $account = UserBankAccount::findOrFail($id);
 
         $request->validate([
             'status' => ['required', 'in:verified,rejected'],
