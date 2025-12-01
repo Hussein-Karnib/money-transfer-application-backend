@@ -41,6 +41,11 @@ require __DIR__.'/auth.php';
 
 Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->group(function () {
     
+    // --- Dashboard ---
+    Route::get('/dashboard', function () {
+        return view('admin.dashboard');
+    })->name('dashboard');
+
     // --- Manage System Admins ---
     Route::resource('admins', AdminController::class);
 
