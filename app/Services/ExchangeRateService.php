@@ -10,14 +10,15 @@ use Illuminate\Support\Facades\Log;
 
 class ExchangeRateService
 {
-    private string $apiKey;
+    private ?string $apiKey;
     private string $apiUrl;
 
     public function __construct()
     {
         // Using exchangerate-api.io as default (free tier available)
         // Can be configured via .env: EXCHANGE_RATE_API_KEY and EXCHANGE_RATE_API_URL
-        $this->apiKey = config('services.exchange_rate.api_key', env('EXCHANGE_RATE_API_KEY', ''));
+        // API key is optional - if not provided, will use free API without key
+        $this->apiKey = config('services.exchange_rate.api_key') ?: env('EXCHANGE_RATE_API_KEY') ?: null;
         $this->apiUrl = config('services.exchange_rate.api_url', env('EXCHANGE_RATE_API_URL', 'https://api.exchangerate-api.com/v4/latest'));
     }
 
