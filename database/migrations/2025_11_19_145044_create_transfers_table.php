@@ -16,7 +16,7 @@ return new class extends Migration
             $table->string('currency_to', 3);
             $table->decimal('exchange_rate', 18, 8);
             $table->decimal('fee', 18, 2);
-            $table->decimal('total_amount', 18, 2); // amount + fee
+            $table->decimal('total_amount', 18, 2); 
             $table->enum('status', ['queued','paid','in_progress','available_for_pickup','completed','failed','refunded','disputed'])->default('queued');
             $table->timestamp('initiated_at')->nullable();
             $table->timestamp('completed_at')->nullable();

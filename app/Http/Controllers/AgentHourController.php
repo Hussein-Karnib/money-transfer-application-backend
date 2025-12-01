@@ -6,6 +6,7 @@ use App\Models\Agent;
 use App\Models\Agent_Hour;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
 
 class AgentHourController extends Controller
 {
@@ -51,36 +52,48 @@ class AgentHourController extends Controller
     public function update(Request $request, Agent $agent)
     {
         // Validation: Expecting an array 'hours' where key is day (0-6)
-        $validated = $request->validate([
+        $validator = Validator::make($request->all(), [
             'hours' => 'required|array',
             'hours.*.open_time' => 'nullable|date_format:H:i',
-            'hours.*.close_time' => 'nullable|date_format:H:i|after:hours.*.open_time',
-            'hours.*.enabled' => 'nullable|boolean', // Checkbox to mark day as "Open"
+            'hours.*.close_time' => 'nullable|date_format:H:i',
+            'hours.*.enabled' => 'nullable|boolean',
         ]);
 
-        DB::transaction(function () use ($agent, $validated) {
-            foreach ($validated['hours'] as $day => $times) {
-                
-                // If "enabled" is not checked, we assume the shop is closed that day
-                if (!isset($times['enabled']) || !$times['enabled']) {
-                    // Remove existing entry if it exists (Closed)
-                    Agent_Hour::where('agent_id', $agent->id)
-                        ->where('day_of_week', $day)
-                        ->delete();
-                    continue;
-                }
+        $validator->after(function ($validator) {
+            $hours = $validator->getData()['hours'] ?? [];
 
-                // If enabled, Update or Create the record
-                // We cannot use updateOrCreate easily with composite keys and $primaryKey=null
-                // So we use standard query builder logic
-                Agent_Hour::updateOrInsert(
+            foreach ($hours as $day => $times) {
+                $enabled = filter_var($times['enabled'] ?? false, FILTER_VALIDATE_BOOLEAN);
+
+                if ($enabled) {
+                    if (empty($times['open_time']) || empty($times['close_time'])) {
+                        $validator->errors()->add("hours.$day.open_time", 'Open and close times are required when enabled.');
+                        continue;
+                    }
+
+                    if ($times['close_time'] <= $times['open_time']) {
+                        $validator->errors()->add("hours.$day.close_time", 'Close time must be later than open time.');
+                    }
+                }
+            }
+        });
+
+        $validated = $validator->validate();
+
+        DB::transaction(function () use ($agent, $validated) {
+            foreach (range(0, 6) as $day) {
+                $times = $validated['hours'][$day] ?? null;
+                $enabled = $times ? filter_var($times['enabled'] ?? false, FILTER_VALIDATE_BOOLEAN) : false;
+
+                Agent_Hour::updateOrCreate(
                     [
                         'agent_id' => $agent->id,
-                        'day_of_week' => $day
+                        'day_of_week' => $day,
                     ],
                     [
-                        'open_time' => $times['open_time'],
-                        'close_time' => $times['close_time']
+                        'open_time' => $enabled ? $times['open_time'] : null,
+                        'close_time' => $enabled ? $times['close_time'] : null,
+                        'is_closed' => !$enabled,
                     ]
                 );
             }
