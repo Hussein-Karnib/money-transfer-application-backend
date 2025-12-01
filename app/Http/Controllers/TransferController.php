@@ -4,11 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\Transfer;
 use App\Models\Beneficiary;
-use App\Models\Transfer_Fee;
-use App\Models\Transfer_Event;
-use App\Models\User;
 use App\Services\ExchangeRateService;
 use App\Services\TransferService;
+use App\Services\PromotionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -30,7 +28,8 @@ class TransferController extends Controller
 {
     public function __construct(
         private ExchangeRateService $exchangeRateService,
-        private TransferService $transferService
+        private TransferService $transferService,
+        private PromotionService $promotionService,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -70,6 +69,9 @@ class TransferController extends Controller
             'amount' => ['required', 'numeric', 'min:1'],
             'currency_from' => ['required', 'string', 'size:3', 'exists:currencies,code'],
             'currency_to' => ['required', 'string', 'size:3', 'exists:currencies,code'],
+            'speed' => ['nullable', 'string', 'in:standard,express'],
+            'promo_code' => ['nullable', 'string', 'max:50'],
+            'destination_country_id' => ['nullable', 'integer', 'exists:countries,id'],
         ]);
 
        
@@ -91,20 +93,45 @@ class TransferController extends Controller
             ], 400);
         }
 
-        // Get sender's country (default to 1 if not found in verification)
+        // Determine sender and destination countries
         $senderCountryId = 1;
+        $destinationCountryId = $request->destination_country_id ?? $beneficiary->country_id;
 
       
+        $amount = (float) $request->amount;
+
         $fee = $this->transferService->calculateFee(
-            (float) $request->amount,
+            $amount,
             $senderCountryId,
-            $beneficiary->country_id
+            $destinationCountryId
         );
 
-       
-        $amount = (float) $request->amount;
-        $totalAmount = $amount + $fee;
+        // Optional promotion / discount
+        $promotion = null;
+        $discount = 0.0;
+
+        if ($request->filled('promo_code')) {
+            try {
+                [$promotion, $discount] = $this->promotionService->validateAndCalculate(
+                    $request->promo_code,
+                    $amount,
+                    $destinationCountryId
+                );
+            } catch (\Exception $e) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                ], 400);
+            }
+        }
+
+        $totalAmount = max(0, $amount + $fee - $discount);
         $recipientAmount = $amount * $exchangeRate;
+
+        // Estimate delivery time based on speed
+        $speed = $request->speed ?? 'standard';
+        $deliveryMinutes = $speed === 'express' ? 60 : 1440; // 1h vs 24h example
+        $estimatedDeliveryAt = now()->addMinutes($deliveryMinutes);
 
         return response()->json([
             'success' => true,
@@ -123,10 +150,15 @@ class TransferController extends Controller
                 ],
                 'exchange_rate' => $exchangeRate,
                 'fee' => round($fee, 2),
+                'discount' => round($discount, 2),
                 'total_amount' => round($totalAmount, 2),
+                'speed' => $speed,
+                'estimated_delivery_time' => $estimatedDeliveryAt->toIso8601String(),
+                'promotion' => $promotion,
                 'breakdown' => [
                     'transfer_amount' => $amount,
                     'fee' => round($fee, 2),
+                    'discount' => round($discount, 2),
                     'total_to_pay' => round($totalAmount, 2),
                     'recipient_receives' => round($recipientAmount, 2),
                 ],
@@ -140,7 +172,10 @@ class TransferController extends Controller
        "beneficiary_id": 1,
        "amount": 1000,
        "currency_from": "USD",
-       "currency_to": "EUR"
+       "currency_to": "EUR",
+       "speed": "standard", // or "express"
+       "promo_code": "SUMMER10", // optional
+       "destination_country_id": 2 // optional, falls back to beneficiary country
      }
      */
     public function store(Request $request): JsonResponse
@@ -151,15 +186,59 @@ class TransferController extends Controller
             'amount' => ['required', 'numeric', 'min:1'],
             'currency_from' => ['required', 'string', 'size:3', 'exists:currencies,code'],
             'currency_to' => ['required', 'string', 'size:3', 'exists:currencies,code'],
+            'speed' => ['nullable', 'string', 'in:standard,express'],
+            'promo_code' => ['nullable', 'string', 'max:50'],
+            'destination_country_id' => ['nullable', 'integer', 'exists:countries,id'],
         ]);
 
-      
+        $beneficiary = Beneficiary::where('id', $request->beneficiary_id)
+            ->where('user_id', Auth::id())
+            ->firstOrFail();
+
+        $amount = (float) $request->amount;
+        $senderCountryId = 1;
+        $destinationCountryId = $request->destination_country_id ?? $beneficiary->country_id;
+
+        $fee = $this->transferService->calculateFee(
+            $amount,
+            $senderCountryId,
+            $destinationCountryId
+        );
+
+        $promotion = null;
+        $discount = 0.0;
+        $promotionId = null;
+
+        if ($request->filled('promo_code')) {
+            try {
+                [$promotion, $discount] = $this->promotionService->validateAndCalculate(
+                    $request->promo_code,
+                    $amount,
+                    $destinationCountryId
+                );
+                $promotionId = $promotion->id;
+            } catch (\Exception $e) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                ], 400);
+            }
+        }
+
+        $speed = $request->speed ?? 'standard';
+        $deliveryMinutes = $speed === 'express' ? 60 : 1440;
+        $estimatedDeliveryAt = now()->addMinutes($deliveryMinutes);
+
         $transfer = $this->transferService->createTransfer([
             'sender_id' => Auth::id(),
-            'beneficiary_id' => $request->beneficiary_id,
-            'amount' => $request->amount,
+            'beneficiary_id' => $beneficiary->id,
+            'amount' => $amount,
             'currency_from' => $request->currency_from,
             'currency_to' => $request->currency_to,
+            'promotion_id' => $promotionId,
+            'discount_amount' => $discount,
+            'speed' => $speed,
+            'estimated_delivery_at' => $estimatedDeliveryAt,
         ]);
 
         return response()->json([
@@ -173,7 +252,7 @@ class TransferController extends Controller
     {
         $transfer = Transfer::where('id', $id)
             ->where('sender_id', Auth::id())
-            ->with(['beneficiary.country', 'beneficiary.method', 'events', 'payment'])
+            ->with(['beneficiary.country', 'beneficiary.method', 'events', 'payment', 'promotion'])
             ->firstOrFail();
 
         return response()->json([
@@ -198,7 +277,7 @@ class TransferController extends Controller
             'success' => true,
             'data' => [
                 'transfer' => $transfer,
-                'current_status' => $transfer->status,
+                'current_status' => $transfer->business_status,
                 'events' => $transfer->events,
             ],
         ]);
