@@ -186,6 +186,7 @@ class AgentController extends Controller
 
             $query->whereHas('hours', function ($q) use ($currentDay, $currentTime) {
                 $q->where('day_of_week', $currentDay)
+                  ->where('is_closed', false)
                   ->where('open_time', '<=', $currentTime)
                   ->where('close_time', '>=', $currentTime);
             });
@@ -203,8 +204,10 @@ class AgentController extends Controller
                     $days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
                     return [
                         'day' => $days[$hour->day_of_week],
+                        'day_of_week' => $hour->day_of_week,
                         'open_time' => $hour->open_time,
                         'close_time' => $hour->close_time,
+                        'is_closed' => $hour->is_closed,
                     ];
                 }),
                 'distance' => $agent->distance ?? null,

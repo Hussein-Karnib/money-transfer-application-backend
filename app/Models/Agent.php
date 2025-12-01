@@ -17,7 +17,7 @@ class Agent extends Model
 
     public function hours()
     {
-        return $this->hasMany(Agent_Hour::class);
+        return $this->hasMany(Agent_Hour::class)->orderBy('day_of_week');
     }
 
     public function transactions()
@@ -53,6 +53,7 @@ class Agent extends Model
 
         return $this->hours()
             ->where('day_of_week', $currentDay)
+            ->where('is_closed', false)
             ->where('open_time', '<=', $currentTime)
             ->where('close_time', '>=', $currentTime)
             ->exists();
