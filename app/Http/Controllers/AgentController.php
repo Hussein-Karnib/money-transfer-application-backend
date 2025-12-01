@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Agent;
 use App\Models\User;
+use App\Support\NotificationHelper;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
@@ -134,8 +135,8 @@ class AgentController extends Controller
 
         $agent->update(['status' => $request->status]);
 
-        // Optional: Send notification to agent about status change
-        // Notification::send($agent->user, new AgentStatusChanged($request->status));
+        // Notify agent about status change (Person 4 helper)
+        NotificationHelper::agentStatusChanged($agent->fresh('user'), $request->status);
 
         return back()->with('success', "Agent status updated to {$request->status}.");
     }
