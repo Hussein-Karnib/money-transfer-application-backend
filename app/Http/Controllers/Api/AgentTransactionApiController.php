@@ -7,6 +7,7 @@ use App\Models\Agent;
 use App\Models\Agent_Transaction;
 use App\Models\Transfer;
 use App\Models\Transfer_Event;
+use App\Support\NotificationHelper;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -112,6 +113,13 @@ class AgentTransactionApiController extends Controller
 
             return $agentTransaction->load('transfer');
         });
+
+        // Person 4: send user-facing notifications
+        if ($validated['type'] === 'cash_out') {
+            NotificationHelper::transferCashedOut($transfer);
+        } elseif ($validated['type'] === 'cash_in' && $newStatus === 'available_for_pickup') {
+            NotificationHelper::transferReadyForPickup($transfer);
+        }
 
         return response()->json([
             'success' => true,
