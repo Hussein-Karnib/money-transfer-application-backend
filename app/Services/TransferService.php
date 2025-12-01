@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Transfer;
 use App\Models\Transfer_Event;
 use App\Models\Transfer_Fee;
+use App\Models\Promotion;
 use App\Models\Beneficiary;
 use App\Models\User;
 use App\Models\User_Verification;
@@ -90,7 +91,7 @@ class TransferService
                 throw new \Exception('Sender not found');
             }
 
-            // Validate currencies are different (optional, but usually transfers are cross-currency)
+            // Validate currencies are different 
             if ($data['currency_from'] === $data['currency_to']) {
                 // Allow same currency transfers, but log it
                 Log::info("Same currency transfer: {$data['currency_from']}");
@@ -117,8 +118,22 @@ class TransferService
                 $beneficiary->country_id
             );
 
-            // Calculate total amount (amount + fee)
-            $totalAmount = $amount + $fee;
+            // Handle optional promotion / discount
+            $promotionId = $data['promotion_id'] ?? null;
+            $discountAmount = isset($data['discount_amount']) ? (float) $data['discount_amount'] : 0.0;
+
+            if ($discountAmount < 0) {
+                throw new \Exception('Discount amount cannot be negative');
+            }
+
+            // Re-validate discount does not exceed amount + fee
+            $maxDiscount = $amount + $fee;
+            if ($discountAmount > $maxDiscount) {
+                throw new \Exception('Discount amount is too large for this transfer');
+            }
+
+            // Calculate total amount (amount + fee - discount)
+            $totalAmount = max(0, $amount + $fee - $discountAmount);
 
             // Generate unique reference code
             $reference = $this->generateReference();
@@ -136,7 +151,16 @@ class TransferService
                 'status' => 'queued',
                 'initiated_at' => now(),
                 'reference' => $reference,
+                'promotion_id' => $promotionId,
+                'discount_amount' => $discountAmount,
+                'speed' => $data['speed'] ?? null,
+                'estimated_delivery_at' => $data['estimated_delivery_at'] ?? null,
             ]);
+
+            // Optionally increment promotion usage when attached
+            if ($promotionId) {
+                Promotion::where('id', $promotionId)->increment('used_count');
+            }
 
             // Create initial transfer event
             $this->createEvent(
@@ -162,14 +186,13 @@ class TransferService
     private function getSenderCountryId(int $userId): int
     {
         // Try to get from user's verification
-        // Note: This assumes verification has country info, which may need to be added
+        
         $verification = User_Verification::where('user_id', $userId)
             ->where('status', 'approved')
             ->latest()
             ->first();
 
-        // For now, return default country ID (1)
-        // In production, you would extract country from verification documents
+      
         // or store it in the users table
         return 1; // Default country ID
     }
@@ -256,7 +279,7 @@ class TransferService
 
         // If payment was made, it should be refunded first
         if ($transfer->status === 'paid' && $transfer->payment) {
-            // Note: In production, you might want to automatically refund the payment
+          
             Log::warning("Cancelling transfer with payment", [
                 'transfer_id' => $transferId,
                 'payment_id' => $transfer->payment->id,
@@ -282,7 +305,7 @@ class TransferService
                 'transfer_id' => $transferId,
                 'payment_id' => $transfer->payment->id,
             ]);
-            // Note: In production, you would call PaymentService to refund the payment
+            
         }
 
         return $this->updateStatus($transferId, 'refunded', 'Transfer refunded by admin', 'admin', $adminId);

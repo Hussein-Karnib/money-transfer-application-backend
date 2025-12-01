@@ -6,6 +6,9 @@ use Illuminate\Database\Eloquent\Model;
 
 class Transfer_Fee extends Model
 {
+    // Explicitly set table name to match migration
+    protected $table = 'transfer_fees';
+    
     protected $fillable = [
         'country_from_id','country_to_id',
         'min_amount','max_amount',
