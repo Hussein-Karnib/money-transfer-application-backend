@@ -12,7 +12,7 @@ return new class extends Migration
             $table->foreignId('transfer_id')->constrained('transfers')->cascadeOnDelete();
             $table->string('status');
             $table->text('note')->nullable();
-            $table->string('actor_type')->nullable(); // system, user, agent, admin
+            $table->string('actor_type')->nullable(); 
             $table->unsignedBigInteger('actor_id')->nullable();
             $table->timestamps();
         });

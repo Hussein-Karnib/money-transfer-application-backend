@@ -2,22 +2,30 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
-use Illuminate\Database\Eloquent\SoftDeletes;
+use Laravel\Sanctum\HasApiTokens;   
 use Illuminate\Notifications\Notifiable;
 
 class User extends Authenticatable
 {
-    use Notifiable, SoftDeletes;
+    use HasApiTokens, HasFactory, Notifiable;  
 
     protected $fillable = [
-        'role_id', 'name', 'email', 'password', 'phone', 'status',
+        'name',
+        'email',
+        'password',
+        'phone',
+        'role_id',
+        'status',
+        'provider_name',
+        'provider_id',
+        'avatar_url',
     ];
 
-    protected $hidden = ['password', 'remember_token'];
-
-    protected $casts = [
-        'email_verified_at' => 'datetime',
+    protected $hidden = [
+        'password',
+        'remember_token',
     ];
 
     public function role()
@@ -33,30 +41,5 @@ class User extends Authenticatable
     public function bankAccounts()
     {
         return $this->hasMany(User_BankAccount::class);
-    }
-
-    public function beneficiaries()
-    {
-        return $this->hasMany(Beneficiary::class);
-    }
-
-    public function transfersSent()
-    {
-        return $this->hasMany(Transfer::class, 'sender_id');
-    }
-
-    public function agent()
-    {
-        return $this->hasOne(Agent::class);
-    }
-
-    public function admin()
-    {
-        return $this->hasOne(Admin::class);
-    }
-
-    public function reports()
-    {
-        return $this->hasMany(Report::class, 'generated_by');
     }
 }
