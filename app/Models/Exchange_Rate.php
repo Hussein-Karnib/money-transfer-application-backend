@@ -6,6 +6,9 @@ use Illuminate\Database\Eloquent\Model;
 
 class Exchange_Rate extends Model
 {
+    // Explicitly set table name to match migration
+    protected $table = 'exchange_rates';
+    
     protected $fillable = [
         'currency_from','currency_to','rate','last_updated',
     ];
