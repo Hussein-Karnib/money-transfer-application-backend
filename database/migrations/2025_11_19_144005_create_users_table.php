@@ -17,6 +17,10 @@ return new class extends Migration
             $table->enum('status', ['active', 'inactive', 'blocked'])->default('active');
             $table->timestamp('email_verified_at')->nullable();
             $table->rememberToken();
+            
+            $table->string('provider_name')->nullable();
+            $table->string('provider_id')->nullable();
+            $table->string('avatar_url')->nullable();  
             $table->timestamps();
             $table->softDeletes();
         });
