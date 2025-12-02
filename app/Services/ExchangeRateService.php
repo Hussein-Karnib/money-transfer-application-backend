@@ -15,69 +15,62 @@ class ExchangeRateService
 
     public function __construct()
     {
-        // Using exchangerate-api.io as default (free tier available)
-        // Can be configured via .env: EXCHANGE_RATE_API_KEY and EXCHANGE_RATE_API_URL
-        // API key is optional - if not provided, will use free API without key
         $this->apiKey = config('services.exchange_rate.api_key') ?: env('EXCHANGE_RATE_API_KEY') ?: null;
-        $this->apiUrl = config('services.exchange_rate.api_url', env('EXCHANGE_RATE_API_URL', 'https://api.exchangerate-api.com/v4/latest'));
+        $this->apiUrl = config('services.exchange_rate.api_url', env('EXCHANGE_RATE_API_URL', 'https://v6.exchangerate-api.com/v6'));
     }
 
- 
     public function fetchRate(string $from, string $to): ?float
     {
         try {
-            // Try to get from cache first (cache for 1 hour)
+            if (empty($this->apiKey)) {
+                Log::error("Exchange rate API key is not configured.");
+                return null;
+            }
+
             $cacheKey = "exchange_rate_{$from}_{$to}";
-            $cachedRate = Cache::get($cacheKey);
-            
-            if ($cachedRate !== null) {
-                return (float) $cachedRate;
+            if (Cache::has($cacheKey)) {
+                return (float) Cache::get($cacheKey);
             }
 
-            // If API key is provided, use exchangerate-api.io
-            if (!empty($this->apiKey)) {
-                $response = Http::timeout(10)->get("https://v6.exchangerate-api.com/v6/{$this->apiKey}/pair/{$from}/{$to}");
-                
-                if ($response->successful()) {
-                    $data = $response->json();
-                    if (isset($data['conversion_rate'])) {
-                        $rate = (float) $data['conversion_rate'];
-                        $this->saveRate($from, $to, $rate);
-                        Cache::put($cacheKey, $rate, now()->addHour());
-                        return $rate;
-                    }
-                }
+            // Primary: pair endpoint
+            $response = Http::timeout(10)->get(
+                "{$this->apiUrl}/{$this->apiKey}/pair/{$from}/{$to}"
+            );
+
+            if ($response->successful() && isset($response['conversion_rate'])) {
+                $rate = (float) $response['conversion_rate'];
+                $this->saveRate($from, $to, $rate);
+                Cache::put($cacheKey, $rate, now()->addHour());
+                return $rate;
             }
 
-            // Fallback to free API (exchangerate-api.com - no key required)
-            $response = Http::timeout(10)->get("{$this->apiUrl}/{$from}");
-            
-            if ($response->successful()) {
-                $data = $response->json();
-                if (isset($data['rates'][$to])) {
-                    $rate = (float) $data['rates'][$to];
-                    $this->saveRate($from, $to, $rate);
-                    Cache::put($cacheKey, $rate, now()->addHour());
-                    return $rate;
-                }
+            // Fallback: latest endpoint
+            $response = Http::timeout(10)->get(
+                "{$this->apiUrl}/{$this->apiKey}/latest/{$from}"
+            );
+
+            if ($response->successful() && isset($response['conversion_rates'][$to])) {
+                $rate = (float) $response['conversion_rates'][$to];
+                $this->saveRate($from, $to, $rate);
+                Cache::put($cacheKey, $rate, now()->addHour());
+                return $rate;
             }
 
-            Log::warning("Failed to fetch exchange rate from {$from} to {$to}");
+            Log::warning("Failed to fetch exchange rate {$from} → {$to}");
             return null;
+
         } catch (\Exception $e) {
             Log::error("Exchange rate API error: " . $e->getMessage());
             return null;
         }
     }
 
-   
     public function getRate(string $from, string $to, bool $forceRefresh = false): ?float
     {
         if ($from === $to) {
             return 1.0;
         }
 
-        // Check if rate exists in database and is recent (less than 24 hours old)
         if (!$forceRefresh) {
             $exchangeRate = Exchange_Rate::where('currency_from', $from)
                 ->where('currency_to', $to)
@@ -89,30 +82,27 @@ class ExchangeRateService
             }
         }
 
-        
         return $this->fetchRate($from, $to);
     }
 
-  
     public function saveRate(string $from, string $to, float $rate): Exchange_Rate
     {
         return Exchange_Rate::updateOrCreate(
             [
                 'currency_from' => $from,
-                'currency_to' => $to,
+                'currency_to'   => $to,
             ],
             [
-                'rate' => $rate,
+                'rate'         => $rate,
                 'last_updated' => now(),
             ]
         );
     }
 
-   
     public function convert(float $amount, string $from, string $to): ?float
     {
         $rate = $this->getRate($from, $to);
-        
+
         if ($rate === null) {
             return null;
         }
@@ -120,20 +110,61 @@ class ExchangeRateService
         return $amount * $rate;
     }
 
-  
+    /**
+     * 🔥 NEW IMPLEMENTATION: only ONE HTTP call per base currency
+     */
     public function updateRatesForBase(string $baseCurrency): array
     {
-        $currencies = Currency::where('code', '!=', $baseCurrency)->pluck('code');
-        $updated = [];
+        $baseCurrency = strtoupper($baseCurrency);
 
-        foreach ($currencies as $currency) {
-            $rate = $this->fetchRate($baseCurrency, $currency);
-            if ($rate !== null) {
-                $updated[$currency] = $rate;
-            }
+        if (empty($this->apiKey)) {
+            Log::error("Exchange rate API key is not configured.");
+            return [];
         }
 
-        return $updated;
+        try {
+            // Single call to latest endpoint
+            $response = Http::timeout(10)->get(
+                "{$this->apiUrl}/{$this->apiKey}/latest/{$baseCurrency}"
+            );
+
+            if (!$response->successful() || !isset($response['conversion_rates'])) {
+                Log::warning('Failed to fetch latest rates for base', [
+                    'base'   => $baseCurrency,
+                    'status' => $response->status(),
+                    'body'   => $response->body(),
+                ]);
+                return [];
+            }
+
+            $apiRates = $response['conversion_rates'];
+
+            // Only care about currencies that exist in DB
+            $currencies = Currency::where('code', '!=', $baseCurrency)->pluck('code');
+            $updated = [];
+
+            foreach ($currencies as $code) {
+                $code = strtoupper($code);
+
+                if (!isset($apiRates[$code])) {
+                    // API doesn't support this currency, skip it
+                    continue;
+                }
+
+                $rate = (float) $apiRates[$code];
+                $this->saveRate($baseCurrency, $code, $rate);
+                $updated[$code] = $rate;
+            }
+
+            return $updated;
+
+        } catch (\Exception $e) {
+            Log::error('Exchange rate API error in updateRatesForBase', [
+                'base'    => $baseCurrency,
+                'message' => $e->getMessage(),
+            ]);
+
+            return [];
+        }
     }
 }
-

@@ -26,5 +26,10 @@ class DatabaseSeeder extends Seeder
             RolesTableSeeder::class,
             AdminUserSeeder::class,
      ]);
+     
+     $this->call([
+    CurrencySeeder::class,
+    ]);
+
     }
 }
