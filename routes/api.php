@@ -1,5 +1,4 @@
 <?php
-
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AgentHourApiController;
 use App\Http\Controllers\Api\AgentTransactionApiController;

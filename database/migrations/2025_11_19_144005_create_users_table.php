@@ -11,7 +11,7 @@ return new class extends Migration
             $table->id();
 
             $table->foreignId('role_id')
-                ->default(1) 
+                ->default(3) 
                 ->constrained('roles');
 
             $table->string('name');

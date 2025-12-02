@@ -8,40 +8,40 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Auth;
-use App\Models\User;
 use Illuminate\Support\Str;
 
 
 class AuthController extends Controller
 {
+    
     public function register(Request $request)
     {
         $data = $request->validate([
-            'name'     => ['required', 'string', 'max:255'],
-            'email'    => ['required', 'email', 'max:255', 'unique:users,email'],
-            'password' => ['required', 'string', 'min:8', 'confirmed'],
-            'phone'    => ['nullable', 'string', 'max:50'],
+            'name'     => 'required|string|max:255',
+            'email'    => 'required|email|unique:users,email',
+            'password' => 'required|string|min:6',
+            'phone'    => 'required|string|max:20',
+            'role_id'  => 'nullable|integer|exists:roles,id',
         ]);
 
-        $customerRole = Role::where('name', 'customer')->first();
+        $defaultRoleId = 3; 
 
         $user = User::create([
             'name'     => $data['name'],
             'email'    => $data['email'],
             'password' => Hash::make($data['password']),
-            'phone'    => $data['phone'] ?? null,
-            'role_id'  => $customerRole?->id,
+            'phone'    => $data['phone'],
+            'role_id'  => $data['role_id'] ?? $defaultRoleId,
             'status'   => 'active',
         ]);
 
-        $token = $user->createToken('mobile')->plainTextToken;
+        $token = $user->createToken('mobile-token')->plainTextToken;
 
         return response()->json([
             'user'  => $user,
             'token' => $token,
         ], 201);
     }
-
     public function login(Request $request)
     {
         $data = $request->validate([
