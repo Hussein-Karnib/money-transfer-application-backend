@@ -35,11 +35,11 @@ class User extends Authenticatable
 
     public function verifications()
     {
-        return $this->hasMany(User_Verification::class);
+        return $this->hasMany(UserVerification::class);
     }
 
     public function bankAccounts()
     {
-        return $this->hasMany(User_BankAccount::class);
+        return $this->hasMany(UserBankAccount::class);
     }
 }
