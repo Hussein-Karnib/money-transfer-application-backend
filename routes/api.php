@@ -101,13 +101,14 @@ Route::middleware(['auth', 'throttle:api'])->group(function () {
     });
 
     // Payments
-    Route::prefix('payments')->group(function () {
+    Route::middleware(['auth', 'throttle:api'])->group(function () {
+    //Route::prefix('payments')->group(function () {
         Route::post('/', [PaymentController::class, 'store']);
         Route::get('/{id}', [PaymentController::class, 'show']);
         Route::post('/{id}/capture', [PaymentController::class, 'capture']);
         Route::post('/{id}/refund', [PaymentController::class, 'refund']);
-    });
-
+    //});
+});
     // Transfer Fees
     Route::prefix('transfer-fees')->group(function () {
         Route::get('/', [TransferFeeController::class, 'index']);
