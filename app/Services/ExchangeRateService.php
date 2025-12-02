@@ -110,9 +110,6 @@ class ExchangeRateService
         return $amount * $rate;
     }
 
-    /**
-     * 🔥 NEW IMPLEMENTATION: only ONE HTTP call per base currency
-     */
     public function updateRatesForBase(string $baseCurrency): array
     {
         $baseCurrency = strtoupper($baseCurrency);
