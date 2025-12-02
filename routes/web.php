@@ -64,6 +64,7 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->grou
 
     // --- Statistics ---
     Route::get('/statistics', [StatisticController::class, 'statistic'])->name('statistics');
+    Route::get('/statistics/search', [StatisticController::class, 'searchDate'])->name('searchDate');
 });
 
 
