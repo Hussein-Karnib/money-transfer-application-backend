@@ -12,9 +12,9 @@ return new class extends Migration
             $table->foreignId('user_id')->constrained('users')->cascadeOnDelete();
             $table->string('id_type');   // passport, ID, etc.
             $table->string('id_number');
+            $table->json('document_path')->nullable(); 
             $table->enum('status', ['pending', 'approved', 'rejected'])->default('pending');
             $table->timestamp('verified_at')->nullable();
-            $table->json('documents')->nullable(); // file paths / meta
             $table->timestamps();
         });
     }
