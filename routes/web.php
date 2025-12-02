@@ -1,4 +1,4 @@
-<?php
+use App\Http\Controllers\SocialAuthController;
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AdminController;
@@ -8,11 +8,8 @@ use App\Http\Controllers\AgentController;
 use App\Http\Controllers\AgentHourController;
 use App\Http\Controllers\StatisticController;
 
-/*
-|--------------------------------------------------------------------------
-| Web Routes
-|--------------------------------------------------------------------------
-*/
+Route::get('/auth/{provider}/callback', [SocialAuthController::class, 'callback'])
+    ->name('social.callback');
 
 // ========================================================================
 // 1. PUBLIC ROUTES (No Login Required)

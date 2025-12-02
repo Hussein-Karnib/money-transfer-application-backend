@@ -9,7 +9,7 @@ return new class extends Migration
     {
         Schema::create('transfer_methods', function (Blueprint $table) {
             $table->id(); 
-            $table->string('name');        // bank_deposit, cash_pickup...
+            $table->string('name');       
             $table->text('description')->nullable();
             $table->timestamps();
         });

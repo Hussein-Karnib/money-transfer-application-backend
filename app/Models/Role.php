@@ -6,10 +6,11 @@ use Illuminate\Database\Eloquent\Model;
 
 class Role extends Model
 {
-    protected $fillable = ['name', 'permissions'];
+    public $timestamps = false;
 
-    protected $casts = [
-        'permissions' => 'array',
+    protected $fillable = [
+        'name',
+        'permissions_json',
     ];
 
     public function users()
