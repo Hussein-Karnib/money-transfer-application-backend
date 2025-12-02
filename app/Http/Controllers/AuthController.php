@@ -8,37 +8,40 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
+
 
 class AuthController extends Controller
 {
+    
     public function register(Request $request)
     {
         $data = $request->validate([
-            'name'     => ['required', 'string', 'max:255'],
-            'email'    => ['required', 'email', 'max:255', 'unique:users,email'],
-            'password' => ['required', 'string', 'min:8', 'confirmed'],
-            'phone'    => ['nullable', 'string', 'max:50'],
+            'name'     => 'required|string|max:255',
+            'email'    => 'required|email|unique:users,email',
+            'password' => 'required|string|min:6',
+            'phone'    => 'required|string|max:20',
+            'role_id'  => 'nullable|integer|exists:roles,id',
         ]);
 
-        $customerRole = Role::where('name', 'customer')->first();
+        $defaultRoleId = 3; 
 
         $user = User::create([
             'name'     => $data['name'],
             'email'    => $data['email'],
             'password' => Hash::make($data['password']),
-            'phone'    => $data['phone'] ?? null,
-            'role_id'  => $customerRole?->id,
+            'phone'    => $data['phone'],
+            'role_id'  => $data['role_id'] ?? $defaultRoleId,
             'status'   => 'active',
         ]);
 
-        $token = $user->createToken('mobile')->plainTextToken;
+        $token = $user->createToken('mobile-token')->plainTextToken;
 
         return response()->json([
             'user'  => $user,
             'token' => $token,
         ], 201);
     }
-
     public function login(Request $request)
     {
         $data = $request->validate([
@@ -84,4 +87,53 @@ class AuthController extends Controller
             'message' => 'Logged out from all devices.',
         ]);
     }
+
+
+    public function socialLogin(Request $request)
+    {
+        $data = $request->validate([
+            'provider'    => 'required|in:google,facebook,apple',
+            'provider_id' => 'required|string',
+            'name'        => 'required|string|max:255',
+            'email'       => 'nullable|email',
+            'avatar'      => 'nullable|string',
+        ]);
+    
+        $user = User::where('provider_name', $data['provider'])
+            ->where('provider_id', $data['provider_id'])
+            ->first();
+    
+        if (!$user && !empty($data['email'])) {
+            $user = User::where('email', $data['email'])->first();
+        }
+    
+        if (!$user) {
+            $user = User::create([
+                'name'          => $data['name'],
+                'email'         => $data['email'] ?? null,
+                'password'      => null, 
+                'role_id'       => 3,    
+                'status'        => 'active',
+                'provider_name' => $data['provider'],
+                'provider_id'   => $data['provider_id'],
+                'avatar_url'    => $data['avatar'] ?? null,
+            ]);
+        } else {
+            $user->update([
+                'name'          => $data['name'],
+                'provider_name' => $data['provider'],
+                'provider_id'   => $data['provider_id'],
+                'avatar_url'    => $data['avatar'] ?? $user->avatar_url,
+                'status'        => $user->status ?: 'active',
+            ]);
+        }
+    
+        $token = $user->createToken('api')->plainTextToken;
+    
+        return response()->json([
+            'user'  => $user,
+            'token' => $token,
+        ]);
+    }
+
 }
