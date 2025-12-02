@@ -8,6 +8,9 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Auth;
+use App\Models\User;
+use Illuminate\Support\Str;
+
 
 class AuthController extends Controller
 {
@@ -84,4 +87,53 @@ class AuthController extends Controller
             'message' => 'Logged out from all devices.',
         ]);
     }
+
+
+    public function socialLogin(Request $request)
+    {
+        $data = $request->validate([
+            'provider'    => 'required|in:google,facebook,apple',
+            'provider_id' => 'required|string',
+            'name'        => 'required|string|max:255',
+            'email'       => 'nullable|email',
+            'avatar'      => 'nullable|string',
+        ]);
+    
+        $user = User::where('provider_name', $data['provider'])
+            ->where('provider_id', $data['provider_id'])
+            ->first();
+    
+        if (!$user && !empty($data['email'])) {
+            $user = User::where('email', $data['email'])->first();
+        }
+    
+        if (!$user) {
+            $user = User::create([
+                'name'          => $data['name'],
+                'email'         => $data['email'] ?? null,
+                'password'      => null, 
+                'role_id'       => 3,    
+                'status'        => 'active',
+                'provider_name' => $data['provider'],
+                'provider_id'   => $data['provider_id'],
+                'avatar_url'    => $data['avatar'] ?? null,
+            ]);
+        } else {
+            $user->update([
+                'name'          => $data['name'],
+                'provider_name' => $data['provider'],
+                'provider_id'   => $data['provider_id'],
+                'avatar_url'    => $data['avatar'] ?? $user->avatar_url,
+                'status'        => $user->status ?: 'active',
+            ]);
+        }
+    
+        $token = $user->createToken('api')->plainTextToken;
+    
+        return response()->json([
+            'user'  => $user,
+            'token' => $token,
+        ]);
+    }
+
 }

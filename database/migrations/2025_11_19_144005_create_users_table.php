@@ -8,21 +8,27 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('users', function (Blueprint $table) {
-            $table->id(); 
-            $table->foreignId('role_id')->constrained('roles');
+            $table->id();
+
+            $table->foreignId('role_id')
+                ->default(1) 
+                ->constrained('roles');
+
             $table->string('name');
-            $table->string('email')->unique();
-            $table->string('password');
-            $table->string('phone')->nullable();
-            $table->enum('status', ['active', 'inactive', 'blocked'])->default('active');
+            $table->string('email')->unique()->nullable();   
             $table->timestamp('email_verified_at')->nullable();
+
+            $table->string('password')->nullable();          
+            $table->string('phone')->nullable();
+
+            $table->string('status')->default('pending');   
+
+            $table->string('provider_name')->nullable();     
+            $table->string('provider_id')->nullable();       
+            $table->string('avatar_url')->nullable();        
+
             $table->rememberToken();
-            
-            $table->string('provider_name')->nullable();
-            $table->string('provider_id')->nullable();
-            $table->string('avatar_url')->nullable();  
             $table->timestamps();
-            $table->softDeletes();
         });
     }
 
