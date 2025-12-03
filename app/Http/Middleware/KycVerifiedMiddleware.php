@@ -11,7 +11,19 @@ class KycVerifiedMiddleware
     {
         $user = $request->user();
 
-        $isVerified = $user?->verifications()
+        if (! $user) {
+            return response()->json([
+                'message' => 'Unauthenticated.',
+            ], 401);
+        }
+
+        // If user has a role and is Admin, bypass KYC check
+        if ($user->role && in_array($user->role->name, ['Admin'], true)) {
+            return $next($request);
+        }
+
+        // For normal users: must have at least one approved verification
+        $isVerified = $user->verifications()
             ->where('status', 'approved')
             ->exists();
 

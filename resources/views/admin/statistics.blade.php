@@ -84,6 +84,30 @@
         tr:hover {
             background-color: silver;
         }
+
+        .search-container {
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: white;
+            border: 1px solid gray;
+        }
+
+        .search-container input {
+            padding: 5px;
+            margin-right: 10px;
+        }
+
+        .search-container button {
+            padding: 5px 10px;
+            background-color: silver;
+            border: 1px solid gray;
+            cursor: pointer;
+        }
+
+        .search-container button:hover {
+            background-color: gray;
+            color: white;
+        }
     </style>
 </head>
 <body>
@@ -93,7 +117,7 @@
         <ul class="nav-links">
             <li><a href="{{ route('admin.dashboard') }}">Dashboard</a></li>
             <li><a href="#">Reports</a></li>
-            <li><a href="#">Audit Logs</a></li>
+            <li><a href="{{ route('admin.auditTable') }}">Audit Logs</a></li>
             <li><a href="{{ route('admin.statistics') }}">Statistics</a></li>
             <li>
                 <form method="POST" action="#" id="logout-form">
@@ -110,6 +134,16 @@
             <div class="user-info">
                 Welcome
             </div>
+        </div>
+
+        <div class="search-container">
+            <form action="{{ route('searchDate') }}">
+                <label>Start Date:</label>
+                <input type="date" name="from_date" required>
+                <label>End Date:</label>
+                <input type="date" name="to_date" required>
+                <button type="submit">Filter</button>
+            </form>
         </div>
 
         <table>
