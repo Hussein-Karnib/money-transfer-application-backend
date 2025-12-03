@@ -13,20 +13,16 @@ class AuditLogController extends Controller
      */
     public function index(Request $request)
     {
-        // Start the query
         $query = Audit_Log::with('user')->latest();
 
-        // Filter by Action (e.g., "login", "transfer_approved")
         if ($request->filled('action')) {
             $query->where('action', 'like', '%' . $request->action . '%');
         }
 
-        // Filter by User ID
-        if ($request->filled('user_id')) {
+      if ($request->filled('user_id')) {
             $query->where('user_id', $request->user_id);
         }
 
-        // Filter by Date Range
         if ($request->filled('date_from')) {
             $query->whereDate('created_at', '>=', $request->date_from);
         }
@@ -34,10 +30,9 @@ class AuditLogController extends Controller
             $query->whereDate('created_at', '<=', $request->date_to);
         }
 
-        // Paginate results (Logs can get very large, so 20 per page is reasonable)
-        $logs = $query->paginate(20)->withQueryString();
+        $data = $query->get();
 
-        return view('admin.audit_logs.index', compact('logs'));
+        return view('admin.auditTable', ['data' => $data]);
     }
 
     /**
@@ -46,11 +41,9 @@ class AuditLogController extends Controller
      */
     public function show($id)
     {
-        // We use findOrFail with the ID directly since route model binding 
-        // might conflict if the class name 'Audit_Log' doesn't match standard naming conventions.
-        $log = Audit_Log::with('user')->findOrFail($id);
+        $data = Audit_Log::with('user')->findOrFail($id);
 
-        return view('admin.audit_logs.show', compact('log'));
+        return view('admin.auditShow', ['data' => $data]);
     }
 
     /**
@@ -67,7 +60,17 @@ class AuditLogController extends Controller
 
         $deletedCount = Audit_Log::where('created_at', '<', $date)->delete();
 
-        return redirect()->route('audit_logs.index')
+        return redirect()->route('admin.auditTable')
             ->with('success', "Pruned $deletedCount logs older than {$request->days_retention} days.");
+    }
+    public static function logSystemAction($user_id, $action, $table_name, $record_id, $data)
+    {
+        Audit_Log::create([
+            'user_id' => $user_id,
+            'action' => $action,
+            'table_name' => $table_name,
+            'record_id' => $record_id,
+            'metadata' => $data
+        ]);
     }
 }

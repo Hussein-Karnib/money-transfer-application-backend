@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Dashboard</title>
+    <title>Audit Logs</title>
     <style>
         body {
             font-family: sans-serif;
@@ -78,28 +78,25 @@
             font-weight: bold;
         }
 
-        .dashboard-cards {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
-        }
-
-        .card {
-            background: white;
+        .main-content {
+            flex: 1;
             padding: 20px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        th, td {
             border: 1px solid black;
-         text-align: center;
+            padding: 8px;
+            text-align: left;
         }
 
-        .card h3 {
-            margin-top: 0;
-            color: black;
-        }
-
-        .card .number {
-            font-weight: bold;
-            color: blue;
-            margin: 10px;
+        th {
+            background-color: #f2f2f2;
         }
     </style>
 </head>
@@ -115,7 +112,7 @@
             <li>
                 <form method="POST" action="#" id="logout-form">
                     @csrf
-                    <a href="#" onclick="alert('Logout clicked'); return false;">Logout</a>
+                    <button type="submit" class="logout-btn">Logout</button>
                 </form>
             </li>
         </ul>
@@ -123,34 +120,38 @@
 
     <div class="main-content">
         <div class="header">
-            <h1>Dashboard</h1>
+            <h1>Audit Logs</h1>
             <div class="user-info">
                 Welcome
             </div>
         </div>
 
-        <div class="dashboard-cards">
-            <div class="card">
-                <h3>Total Agents</h3>
-                <div class="number">{{ $data['active_agents_count'] }}</div>
-                <p>Active agents</p>
-            </div>
-            <div class="card">
-                <h3>Transactions</h3>
-                <div class="number">{{ $data['total_transactions_count'] }}</div>
-                <p>Completed transfers</p>
-            </div>
-            <div class="card">
-                <h3>Pending Approvals</h3>
-                <div class="number">{{ $data['pending_approvals_count'] }}</div>
-                <p>Agents pending</p>
-            </div>
-            <div class="card">
-                <h3>System Alerts</h3>
-                <div class="number">0</div>
-                <p>Requires attention</p>
-            </div>
-        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>User</th>
+                    <th>Action</th>
+                    <th>Table</th>
+                    <th>Record ID</th>
+                    <th>Metadata</th>
+                    <th>Date</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($data as $logged)
+                <tr>
+                    <td>{{ $logged->id }}</td>
+                    <td>{{ $logged->user}}</td>
+                    <td>{{ $logged->action }}</td>
+                    <td>{{ $logged->table_name }}</td>
+                    <td>{{ $logged->record_id }}</td>
+                    <td>{{ $logged->metadata }}</td>
+                    <td>{{ $logged->created_at }}</td>
+                </tr>
+                @endforeach
+            </tbody>
+        </table>
     </div>
 
 </body>

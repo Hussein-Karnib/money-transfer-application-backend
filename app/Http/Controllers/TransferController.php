@@ -10,6 +10,9 @@ use App\Services\PromotionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+use App\Http\Controllers\AuditLogController;
 
 class TransferController extends Controller
 {
@@ -260,6 +263,14 @@ class TransferController extends Controller
             'estimated_delivery_at'=> $estimatedDeliveryAt,
         ]);
 
+        AuditLogController::logSystemAction(
+            Auth::id(),
+            'create_transfer',
+            'transfers',
+            $transfer->id,
+            ['amount' => $amount, 'currency_from' => $request->currency_from, 'currency_to' => $request->currency_to]
+        );
+
         // Load relations for JSON
         $transfer->load(['beneficiary.country', 'beneficiary.method', 'events']);
 
@@ -317,6 +328,14 @@ class TransferController extends Controller
     {
         $transfer = $this->transferService->cancelTransfer($id, Auth::id());
 
+        AuditLogController::logSystemAction(
+            Auth::id(),
+            'cancel_transfer',
+            'transfers',
+            $id,
+            ['status' => 'cancelled']
+        );
+
         return response()->json([
             'success' => true,
             'message' => 'Transfer cancelled successfully',
@@ -327,6 +346,14 @@ class TransferController extends Controller
     public function refund(int $id): JsonResponse
     {
         $transfer = $this->transferService->processRefund($id, Auth::id());
+
+        AuditLogController::logSystemAction(
+            Auth::id(),
+            'refund_transfer',
+            'transfers',
+            $id,
+            ['status' => 'refunded']
+        );
 
         return response()->json([
             'success' => true,

@@ -6,6 +6,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use App\Models\UserBankAccount;
+use App\Http\Controllers\AuditLogController;
 
 class UserBankAccountController extends Controller
 {
@@ -56,6 +57,14 @@ class UserBankAccountController extends Controller
             'status'         => 'pending',
         ]);
 
+        AuditLogController::logSystemAction(
+            Auth::id(),
+            'create_bank_account',
+            'user_bank_accounts',
+            $account->id,
+            ['bank_name' => $account->bank_name, 'currency' => $account->currency_code]
+        );
+
         return response()->json([
             'success' => true,
             'message' => 'Bank account added successfully',
@@ -104,6 +113,14 @@ class UserBankAccountController extends Controller
             ->firstOrFail();
 
         $account->delete();
+
+        AuditLogController::logSystemAction(
+            Auth::id(),
+            'delete_bank_account',
+            'user_bank_accounts',
+            $id,
+            []
+        );
 
         return response()->json([
             'success' => true,
