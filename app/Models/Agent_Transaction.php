@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class Agent_Transaction extends Model
 {
+    protected $table = 'agent_transactions';
+
     protected $fillable = [
         'agent_id','transfer_id','type','amount','commission','processed_at',
     ];
