@@ -43,48 +43,70 @@ class TransferFeeController extends Controller
        "country_to_id": 2
      }
      */
-    public function calculate(Request $request): JsonResponse
-    {
-        $request->validate([
-            'amount' => ['required', 'numeric', 'min:0'],
-            'country_from_id' => ['required', 'integer', 'exists:countries,id'],
-            'country_to_id' => ['required', 'integer', 'exists:countries,id'],
-        ]);
+   public function calculate(Request $request): JsonResponse
+{
+    $request->validate([
+        'amount'          => ['required', 'numeric', 'min:0'],
+        'country_from_id' => ['required', 'integer', 'exists:countries,id'],
+        'country_to_id'   => ['required', 'integer', 'exists:countries,id'],
+    ]);
 
-        $amount = (float) $request->amount;
-        $countryFromId = $request->country_from_id;
-        $countryToId = $request->country_to_id;
+    $amount        = (float) $request->amount;
+    $countryFromId = (int) $request->country_from_id;
+    $countryToId   = (int) $request->country_to_id;
 
-        // Find matching fee rule
-        $feeRule = Transfer_Fee::where('country_from_id', $countryFromId)
-            ->where('country_to_id', $countryToId)
-            ->where('min_amount', '<=', $amount)
-            ->where('max_amount', '>=', $amount)
-            ->with(['countryFrom', 'countryTo'])
-            ->first();
+    // 1) Find matching fee rule
+    $feeRule = Transfer_Fee::where('country_from_id', $countryFromId)
+        ->where('country_to_id', $countryToId)
+        ->where('min_amount', '<=', $amount)
+        ->where('max_amount', '>=', $amount)
+        ->with(['countryFrom', 'countryTo'])
+        ->first();
 
-        // Calculate fee
-        if ($feeRule) {
-            $fee = $feeRule->fee_fixed ?? 0;
-            $fee += ($amount * ($feeRule->fee_percent ?? 0) / 100);
+    // 2) Calculate fee
+    if ($feeRule) {
+        $fixed   = (float) $feeRule->fee_fixed;
+        $percent = (float) $feeRule->fee_percent;
+
+        // If rule explicitly says "no fees" (0 + 0), you have 2 options:
+        // A) Respect it → fee = 0
+        // B) Fall back to default formula
+        //
+        // I'll show A (respect) by default, and comment B.
+        if ($fixed === 0.0 && $percent === 0.0) {
+            // A) Respect rule: no fees for this corridor / range
+            $fee = 0.0;
         } else {
-           
-            $fee = max($amount * 0.02, 5.0);
-            $feeRule = null; 
+            // Normal rule-based calculation
+            $fee = $fixed + ($amount * $percent / 100.0);
         }
 
-        return response()->json([
-            'success' => true,
-            'data' => [
-                'amount' => $amount,
-                'country_from' => Country::find($countryFromId),
-                'country_to' => Country::find($countryToId),
-                'fee' => round($fee, 2),
-                'fee_rule' => $feeRule,
-                'total_amount' => $amount + $fee,
-            ],
-        ]);
+        $appliedRule = $feeRule;
+    } else {
+        // 3) No rule found → fallback logic (global default)
+        // 2% of amount, minimum 5.0
+        $fee        = max($amount * 0.02, 5.0);
+        $appliedRule = null;
     }
+
+    $fee        = round($fee, 2);
+    $total      = $amount + $fee;
+    $countryFrom = Country::find($countryFromId);
+    $countryTo   = Country::find($countryToId);
+
+    return response()->json([
+        'success' => true,
+        'data'    => [
+            'amount'       => $amount,
+            'country_from' => $countryFrom,
+            'country_to'   => $countryTo,
+            'fee'          => $fee,
+            'fee_rule'     => $appliedRule,
+            'total_amount' => $total,
+        ],
+    ]);
+}
+
 
   
     public function show(int $id): JsonResponse
