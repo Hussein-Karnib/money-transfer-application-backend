@@ -1,94 +1,126 @@
 <?php
+
 namespace App\Http\Controllers;
-use App\Models\UserBankAccount;
+
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use App\Models\User_BankAccount;
+use App\Models\UserBankAccount;
+use App\Http\Controllers\AuditLogController;
 
 class UserBankAccountController extends Controller
 {
- 
+    /**
+     * Generate the next account number for the CURRENT user.
+     * Example: 000001, 000002, 000003, ...
+     */
+    private function generateAccountNumber(): string
+    {
+        // Get the last account for this user (by id)
+        $last = UserBankAccount::where('user_id', Auth::id())
+            ->orderByDesc('id')
+            ->first();
+
+        // If no accounts yet → start from 1, else increment
+        $nextNumber = $last ? ((int) $last->account_number + 1) : 1;
+
+        // Return as 6-digit padded string (change 6 → 10 if you want longer)
+        return str_pad((string) $nextNumber, 6, '0', STR_PAD_LEFT);
+    }
+
     public function index(): JsonResponse
     {
-        $accounts = User_BankAccount::where('user_id', Auth::id())
+        $accounts = UserBankAccount::where('user_id', Auth::id())
             ->with('currency')
             ->get();
 
         return response()->json([
             'success' => true,
-            'data' => $accounts,
+            'data'    => $accounts,
         ]);
     }
 
-    
     public function store(Request $request): JsonResponse
     {
         // Validate the input data
-        $request->validate([
-            'bank_name' => ['required', 'string', 'max:255'],
-            'account_number' => ['required', 'string', 'max:255'],
+        $data = $request->validate([
+            'bank_name'     => ['required', 'string', 'max:255'],
+            // account_number is NOT provided by client anymore
             'currency_code' => ['required', 'string', 'size:3', 'exists:currencies,code'],
         ]);
 
-        $account = User_BankAccount::create([
-            'user_id' => Auth::id(),
-            'bank_name' => $request->bank_name,
-            'account_number' => $request->account_number,
-            'currency_code' => $request->currency_code,
-            'status' => 'pending',
+        $account = UserBankAccount::create([
+            'user_id'        => Auth::id(),
+            'bank_name'      => $data['bank_name'],
+            'account_number' => $this->generateAccountNumber(), // 👈 auto-generated
+            'currency_code'  => $data['currency_code'],
+            'status'         => 'pending',
         ]);
+
+        AuditLogController::logSystemAction(
+            Auth::id(),
+            'create_bank_account',
+            'user_bank_accounts',
+            $account->id,
+            ['bank_name' => $account->bank_name, 'currency' => $account->currency_code]
+        );
 
         return response()->json([
             'success' => true,
             'message' => 'Bank account added successfully',
-            'data' => $account->load('currency'),
+            'data'    => $account->load('currency'),
         ], 201);
     }
 
- 
-    public function show(int $id): JsonResponse
+    public function show(string $id): JsonResponse
     {
-        $account = User_BankAccount::where('id', $id)
+        $account = UserBankAccount::where('account_number', $id)
             ->where('user_id', Auth::id())
             ->with('currency')
             ->firstOrFail();
 
         return response()->json([
             'success' => true,
-            'data' => $account,
+            'data'    => $account,
         ]);
     }
 
-   
-    public function update(Request $request, int $id): JsonResponse
+    public function update(Request $request, string $id): JsonResponse
     {
-        $account = User_BankAccount::where('id', $id)
+        $account = UserBankAccount::where('account_number', $id)
             ->where('user_id', Auth::id())
             ->firstOrFail();
 
-        $request->validate([
-            'bank_name' => ['sometimes', 'string', 'max:255'],
-            'account_number' => ['sometimes', 'string', 'max:255'],
+        // We DO NOT allow changing account_number here (that’s dangerous)
+        $data = $request->validate([
+            'bank_name'     => ['sometimes', 'string', 'max:255'],
             'currency_code' => ['sometimes', 'string', 'size:3', 'exists:currencies,code'],
         ]);
 
-        $account->update($request->only(['bank_name', 'account_number', 'currency_code']));
+        $account->update($data);
 
         return response()->json([
             'success' => true,
             'message' => 'Bank account updated successfully',
-            'data' => $account->fresh()->load('currency'),
+            'data'    => $account->fresh()->load('currency'),
         ]);
     }
 
-    public function destroy(int $id): JsonResponse
+    public function destroy(string $id): JsonResponse
     {
-        $account = User_BankAccount::where('id', $id)
+        $account = UserBankAccount::where('account_number', $id)
             ->where('user_id', Auth::id())
             ->firstOrFail();
 
         $account->delete();
+
+        AuditLogController::logSystemAction(
+            Auth::id(),
+            'delete_bank_account',
+            'user_bank_accounts',
+            $id,
+            []
+        );
 
         return response()->json([
             'success' => true,
@@ -96,26 +128,24 @@ class UserBankAccountController extends Controller
         ]);
     }
 
-    
     public function verify(Request $request, int $id): JsonResponse
     {
-       
-        $account = User_BankAccount::findOrFail($id);
+        // This one is probably for admin/agent, so we don't limit by Auth::id()
+        $account = UserBankAccount::findOrFail($id);
 
-        $request->validate([
+        $data = $request->validate([
             'status' => ['required', 'in:verified,rejected'],
         ]);
 
         $account->update([
-            'status' => $request->status,
-            'verified_at' => $request->status === 'verified' ? now() : null,
+            'status'      => $data['status'],
+            'verified_at' => $data['status'] === 'verified' ? now() : null,
         ]);
 
         return response()->json([
             'success' => true,
             'message' => 'Bank account verification updated',
-            'data' => $account->fresh()->load('currency'),
+            'data'    => $account->fresh()->load('currency'),
         ]);
     }
 }
-
