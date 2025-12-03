@@ -66,79 +66,116 @@ class BeneficiaryController extends Controller
         "bank_account_id": 3
       }
      */
-    public function store(Request $request): JsonResponse
-    {
-        $request->validate([
-            'full_name'           => ['required', 'string', 'max:255'],
-            'country_id'          => ['required', 'integer', 'exists:countries,id'],
-            'transfer_method_id'  => ['required', 'integer', 'exists:transfer_methods,id'],
+   public function store(Request $request): JsonResponse
+{
+    $data = $request->validate([
+        'full_name'           => ['required', 'string', 'max:255'],
+        'country_id'          => ['required', 'integer', 'exists:countries,id'],
+        'transfer_method_id'  => ['required', 'integer', 'exists:transfer_methods,id'],
 
-            'bank_account_id'     => ['nullable', 'integer', 'exists:user_bank_accounts,id'],
-            'payout_details'      => ['nullable', 'array'],
-            'payout_details.account_number' => ['nullable', 'string', 'max:100'],
-        ]);
+        'bank_account_id'     => ['nullable', 'integer', 'exists:user_bank_accounts,id'],
 
-        $userId   = Auth::id();
-        $country  = Country::findOrFail($request->country_id);
-        $method   = Transfer_Method::findOrFail($request->transfer_method_id);
+        // generic payout_details object (optional)
+        'payout_details'                => ['nullable', 'array'],
+        'payout_details.account_number' => ['nullable', 'string', 'max:100'],
 
-        // ----------------------------------------------------
-        // 1) Decide where the "account_number" comes from
-        // ----------------------------------------------------
+        // optional shortcuts – front-end is NOT forced to send these
+        'card_number'                   => ['nullable', 'string', 'max:30'],
+        'iban'                          => ['nullable', 'string', 'max:50'],
+    ]);
+
+    $userId  = Auth::id();
+    $country = Country::findOrFail($data['country_id']);
+    $method  = Transfer_Method::findOrFail($data['transfer_method_id']);
+
+    $methodName = strtolower($method->name);
+
+    // --------------------------------------------------
+    // BASE DETAILS FROM SENDER BANK ACCOUNT (USER)
+    // --------------------------------------------------
+    $baseDetails = [];
+    $bankAccount = null;
+
+    if (!empty($data['bank_account_id'])) {
+        $bankAccount = UserBankAccount::where('id', $data['bank_account_id'])
+            ->where('user_id', $userId)
+            ->firstOrFail();
+
+        // IMPORTANT:
+        // This is the SENDER account, not the receiver.
+        // We do NOT copy its account_number to the receiver.
+        $baseDetails = [
+            'bank_account_id' => $bankAccount->id,
+            'bank_name'       => $bankAccount->bank_name,
+            'currency_code'   => $bankAccount->currency_code,
+        ];
+    }
+
+    // --------------------------------------------------
+    // BUILD PAYOUT DETAILS PER METHOD TYPE
+    // --------------------------------------------------
+    $payoutDetails = [];
+
+    // =============== CARD METHODS ======================
+    if (str_contains($methodName, 'card')) {
+        // receiver card number:
+        // 1) if frontend sends card_number (for testing)
+        // 2) otherwise AUTO-GENERATE
         $accountNumber = null;
-        $bankAccountId = null;
 
-        if ($request->filled('bank_account_id')) {
-            // Use existing user bank account as source of truth
-            $bankAccount = UserBankAccount::where('id', $request->bank_account_id)
-                ->where('user_id', $userId)
-                ->firstOrFail();
-
-            $accountNumber = $bankAccount->account_number;
-            $bankAccountId = $bankAccount->id;
-        } elseif (!empty($request->payout_details['account_number'])) {
-            $accountNumber = $request->payout_details['account_number'];
+        if (!empty($data['card_number'])) {
+            $accountNumber = $data['card_number'];
         } else {
+            // AUTO generate for receiver, no user input needed
+            $accountNumber = $this->generateCardNumber();
+        }
+
+        $digits = preg_replace('/\D/', '', $accountNumber);
+
+        if (!$this->isValidCardNumber($digits)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Either bank_account_id or payout_details.account_number is required.',
+                'message' => 'Invalid card number generated or provided.',
             ], 422);
         }
 
-        // Normalize method name
-        $methodName = strtolower($method->name);
+        $brand = $this->detectCardBrand($digits) ?? 'unknown';
+        $last4 = substr($digits, -4);
 
-        // ----------------------------------------------------
-        // 2) Build payout_details based on method type
-        // ----------------------------------------------------
-        $payoutDetails = [];
+        $payoutDetails = array_merge($baseDetails, [
+            'type'        => 'card',
+            // full PAN stored only for our project logic
+            'card_number' => $digits,
+            'brand'       => $brand,
+            'last4'       => $last4,
+            'masked'      => substr($digits, 0, 4) . ' **** **** ' . $last4,
+        ]);
+    }
 
-        // a) Card-based methods (Card-to-Card, etc.)
-        if (str_contains($methodName, 'card')) {
+    // =============== BANK / IBAN METHODS ==============
+    elseif (str_contains($methodName, 'bank')) {
 
-            if (!$this->isValidCardNumber($accountNumber)) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Invalid card number. Must be a valid Visa/Mastercard/Amex/Discover card.',
-                ], 422);
-            }
+        $ibanCountries = ['LB','DE','FR','GB','ES','IT','NL','BE','CH','TR','SA','QA','AE'];
 
-            $brand  = $this->detectCardBrand($accountNumber) ?? 'unknown';
-            $digits = preg_replace('/\D/', '', $accountNumber);
-            $last4  = substr($digits, -4);
+        // Receiver account (IBAN or local)
+        $accountNumber = null;
 
-            $payoutDetails = [
-                'type'            => 'card',
-                'brand'           => $brand,
-                'last4'           => $last4,
-                'masked'          => substr($digits, 0, 4) . ' **** **** ' . $last4,
-                'bank_account_id' => $bankAccountId,
-            ];
+        // 1) explicit IBAN in "iban" field
+        if (!empty($data['iban'])) {
+            $accountNumber = $data['iban'];
+        }
+        // 2) explicit account_number inside payout_details (for manual/testing)
+        elseif (!empty($data['payout_details']['account_number'])) {
+            $accountNumber = $data['payout_details']['account_number'];
+        }
+        // 3) if still empty → AUTO-GENERATE IBAN-like
+        else {
+            $accountNumber = $this->generateIbanForCountry($country->iso2);
         }
 
-        // b) Bank transfer / IBAN-based methods
-        elseif (str_contains($methodName, 'bank')) {
+        $accountNumber = strtoupper(str_replace(' ', '', $accountNumber));
 
+        if (in_array($country->iso2, $ibanCountries)) {
             if (!$this->isValidIBAN($accountNumber, $country->iso2)) {
                 return response()->json([
                     'success' => false,
@@ -146,88 +183,58 @@ class BeneficiaryController extends Controller
                 ], 422);
             }
 
-            $iban = strtoupper(str_replace(' ', '', $accountNumber));
-
-            $payoutDetails = [
-                'type'            => 'iban',
-                'iban'            => $iban,
-                'country_iso2'    => $country->iso2,
-                'bank_account_id' => $bankAccountId,
-            ];
+            $payoutDetails = array_merge($baseDetails, [
+                'type'         => 'iban',
+                'iban'         => $accountNumber,
+                'country_iso2' => $country->iso2,
+            ]);
+        } else {
+            // Non-IBAN country
+            $payoutDetails = array_merge($baseDetails, [
+                'type'           => 'local_account',
+                'account_number' => $accountNumber,
+                'country_iso2'   => $country->iso2,
+            ]);
         }
-
-        // c) Other payout types (cash pickup, wallet, etc.)
-        else {
-            // Just store what was given (if any)
-            $payoutDetails = $request->payout_details ?? [];
-            $payoutDetails['bank_account_id'] = $bankAccountId;
-        }
-
-        $beneficiary = Beneficiary::create([
-            'user_id'            => $userId,
-            'full_name'          => $request->full_name,
-            'country_id'         => $country->id,
-            'transfer_method_id' => $method->id,
-            'payout_details'     => $payoutDetails,
-        ]);
-
-        AuditLogController::logSystemAction(
-            Auth::id(),
-            'create_beneficiary',
-            'beneficiaries',
-            $beneficiary->id,
-            ['full_name' => $beneficiary->full_name]
-        );
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Beneficiary added successfully',
-            'data'    => $beneficiary->load(['country', 'method']),
-        ], 201);
     }
 
-    public function show(int $id): JsonResponse
-    {
-        $beneficiary = Beneficiary::where('id', $id)
-            ->where('user_id', Auth::id())
-            ->with(['country', 'method'])
-            ->firstOrFail();
+    // =============== OTHER METHODS ====================
+    // Cash pickup, mobile wallet, ATM, etc.
+    else {
+        // Here we don't force an account_number at all.
+        // We just merge whatever extra was sent plus the sender bank info.
+        $extra = $data['payout_details'] ?? [];
 
-        return response()->json([
-            'success' => true,
-            'data'    => $beneficiary,
-        ]);
+        $payoutDetails = array_merge($baseDetails, $extra);
+        // Example final structure:
+        // {
+        //   "bank_account_id": 4,
+        //   "bank_name": "beirut_bank",
+        //   "currency_code": "USD",
+        //   "wallet_number": "...",
+        //   "pickup_location": "..."
+        // }
     }
 
-    public function update(Request $request, int $id): JsonResponse
-    {
-        $beneficiary = Beneficiary::where('id', $id)
-            ->where('user_id', Auth::id())
-            ->firstOrFail();
+    // --------------------------------------------------
+    // CREATE BENEFICIARY
+    // --------------------------------------------------
+    $beneficiary = Beneficiary::create([
+        'user_id'            => $userId,
+        'full_name'          => $data['full_name'],
+        'country_id'         => $data['country_id'],
+        'transfer_method_id' => $data['transfer_method_id'],
+        'payout_details'     => $payoutDetails,
+    ]);
 
-        $request->validate([
-            'full_name'           => ['sometimes', 'string', 'max:255'],
-            'country_id'          => ['sometimes', 'integer', 'exists:countries,id'],
-            'transfer_method_id'  => ['sometimes', 'integer', 'exists:transfer_methods,id'],
-            'payout_details'      => ['sometimes', 'array'],
-        ]);
+    return response()->json([
+        'success' => true,
+        'message' => 'Beneficiary added successfully',
+        'data'    => $beneficiary->load(['country', 'method']),
+    ], 201);
+}
 
-        $beneficiary->update($request->only(['full_name', 'country_id', 'transfer_method_id', 'payout_details']));
 
-        AuditLogController::logSystemAction(
-            Auth::id(),
-            'update_beneficiary',
-            'beneficiaries',
-            $beneficiary->id,
-            ['changes' => $request->only(['full_name', 'country_id', 'transfer_method_id', 'payout_details'])]
-        );
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Beneficiary updated successfully',
-            'data'    => $beneficiary->fresh()->load(['country', 'method']),
-        ]);
-    }
 
     public function destroy(int $id): JsonResponse
     {
@@ -338,7 +345,7 @@ class BeneficiaryController extends Controller
     {
         $number = preg_replace('/\D/', '', $number);
 
-        // Basic PAN length check (14–19 digits allowed generally, we restrict to 15–16 for common brands)
+        // Basic PAN length check (14–19 digits allowed generally, we restrict to 14–19)
         if (strlen($number) < 14 || strlen($number) > 19) {
             return false;
         }
@@ -401,5 +408,117 @@ class BeneficiaryController extends Controller
         }
 
         return null;
+    }
+
+    // =========================================================
+    //  AUTO GENERATORS (CARD + IBAN)
+    // =========================================================
+
+    /**
+     * Generate a random, Luhn-valid 16-digit Visa style card number.
+     * This is for DEMO purposes (you don't want real cards in dev).
+     */
+    private function generateCardNumber(): string
+    {
+        // Start with 15 digits (Visa usually starts with 4)
+        $digits = '4';
+        for ($i = 0; $i < 14; $i++) {
+            $digits .= random_int(0, 9);
+        }
+
+        // Compute Luhn check digit
+        $sum = 0;
+        $alt = true; // start doubling from the rightmost of the 15
+        for ($i = strlen($digits) - 1; $i >= 0; $i--) {
+            $n = intval($digits[$i]);
+            if ($alt) {
+                $n *= 2;
+                if ($n > 9) {
+                    $n -= 9;
+                }
+            }
+            $sum += $n;
+            $alt = !$alt;
+        }
+
+        $checkDigit = (10 - ($sum % 10)) % 10;
+
+        return $digits . $checkDigit;
+    }
+
+    /**
+     * Generate an IBAN-like string for a given country that passes the checksum.
+     * Not a real bank account, but structurally valid for demos.
+     */
+    private function generateIbanForCountry(string $countryIso2): string
+    {
+        $countryIso2 = strtoupper($countryIso2 ?: 'XX');
+
+        $lengthMap = [
+            'LB' => 28,
+            'DE' => 22,
+            'FR' => 27,
+            'GB' => 22,
+            'ES' => 24,
+            'IT' => 27,
+            'NL' => 18,
+            'BE' => 16,
+            'CH' => 21,
+            'TR' => 26,
+            'SA' => 24,
+            'QA' => 29,
+            'AE' => 23,
+        ];
+
+        // Default to 24 if country not in map
+        $totalLength = $lengthMap[$countryIso2] ?? 24;
+
+        // BBAN length = total - 4 (country + 2 check digits)
+        $bbanLength = $totalLength - 4;
+
+        $bban = '';
+        for ($i = 0; $i < $bbanLength; $i++) {
+            $bban .= random_int(0, 9);
+        }
+
+        // Temporary IBAN with '00' check digits
+        $tempIban = $countryIso2 . '00' . $bban;
+
+        // Rearrange as per IBAN rules
+        $rearranged = substr($tempIban, 4) . substr($tempIban, 0, 4);
+
+        // Convert to numeric string
+        $numericString = '';
+        for ($i = 0; $i < strlen($rearranged); $i++) {
+            $c = $rearranged[$i];
+            if (ctype_alpha($c)) {
+                $numericString .= (ord($c) - 55); // A=10...
+            } else {
+                $numericString .= $c;
+            }
+        }
+
+        // Compute mod 97
+        $remainder = 0;
+        $block = '';
+        $len = strlen($numericString);
+
+        for ($i = 0; $i < $len; $i++) {
+            $block .= $numericString[$i];
+            if (strlen($block) > 8) {
+                $remainder = intval($block) % 97;
+                $block = (string)$remainder;
+            }
+        }
+
+        if ($block !== '') {
+            $remainder = intval($block) % 97;
+        }
+
+        // Calculate check digits
+        $checkDigits = 98 - ($remainder % 97);
+        $checkDigitsStr = str_pad((string)$checkDigits, 2, '0', STR_PAD_LEFT);
+
+        return $countryIso2 . $checkDigitsStr . $bban;
     }
 }
