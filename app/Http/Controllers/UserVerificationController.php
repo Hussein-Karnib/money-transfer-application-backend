@@ -13,40 +13,43 @@ class UserVerificationController extends Controller
      * GET /api/kyc
      * Return all KYC submissions for the current user (most recent first)
      */
-    public function show(Request $request)
-    {
-        $verifications = $request->user()
-            ->verifications()
-            ->orderByDesc('created_at')
-            ->get()
-            ->map(function (UserVerification $v) {
-                return [
-                    'id'            => $v->id,
-                    'id_type'       => $v->id_type,
-                    'id_number'     => $v->id_number,
-                    'status'        => $v->status,
-                    'document_path' => $v->document_path,
-                    'document_url'  => $v->document_path
-                        ? asset('storage/' . $v->document_path)
-                        : null,
-                    'created_at'    => $v->created_at,
-                    'verified_at'   => $v->verified_at,
-                ];
-            });
+   // app/Http/Controllers/UserVerificationController.php
 
-        AuditLogController::logSystemAction(
-            $user->id,
-            'submit_verification',
-            'user_verifications',
-            $verification->id,
-            ['id_type' => $data['id_type']]
-        );
+public function show(Request $request)
+{
+    $user = $request->user(); // <-- FIX
 
+    if (! $user) {
         return response()->json([
-            'success' => true,
-            'data'    => $verifications,
-        ]);
+            'success' => false,
+            'message' => 'Unauthenticated.',
+        ], 401);
     }
+
+    $verifications = $user->verifications()
+        ->orderByDesc('created_at')
+        ->get()
+        ->map(function (UserVerification $v) {
+            return [
+                'id'            => $v->id,
+                'id_type'       => $v->id_type,
+                'id_number'     => $v->id_number,
+                'status'        => $v->status,
+                'document_path' => $v->document_path,
+                'document_url'  => $v->document_path
+                    ? asset('storage/' . $v->document_path)
+                    : null,
+                'created_at'    => $v->created_at,
+                'verified_at'   => $v->verified_at,
+            ];
+        });
+
+    return response()->json([
+        'success' => true,
+        'data'    => $verifications,
+    ]);
+}
+
 
     /**
      * POST /api/kyc

@@ -11,27 +11,36 @@ class TransferMethodSeeder extends Seeder
     {
         $methods = [
             [
-                'name' => 'Bank Transfer',
-                'description' => 'Traditional bank-to-bank transfer.'
+                'name' => 'Bank Deposit',
+                'description' => 'Send directly to a bank account',
             ],
             [
                 'name' => 'Cash Pickup',
-                'description' => 'Receiver collects cash from a partner location.'
+                'description' => 'Pickup cash at an agent location',
+            ],
+            [
+                'name' => 'Bank Transfer',
+                'description' => 'Traditional bank-to-bank transfer.',
+            ],
+            [
+                'name' => 'Cash Pickup',
+                'description' => 'Receiver collects cash from a partner location.',
             ],
             [
                 'name' => 'Mobile Wallet',
-                'description' => 'Funds delivered to a mobile money wallet.'
+                'description' => 'Funds delivered to a mobile money wallet.',
             ],
             [
                 'name' => 'ATM Withdrawal',
-                'description' => 'Cash withdrawal using a code at ATM.'
+                'description' => 'Cash withdrawal using a code at ATM.',
             ],
             [
                 'name' => 'Card-to-Card Transfer',
-                'description' => 'Direct transfer between debit/credit cards.'
+                'description' => 'Direct transfer between debit/credit cards.',
             ],
         ];
 
         DB::table('transfer_methods')->insert($methods);
     }
 }
+
