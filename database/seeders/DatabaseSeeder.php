@@ -2,9 +2,11 @@
 
 namespace Database\Seeders;
 
+use App\Models\Role;
 use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Hash;
 
 class DatabaseSeeder extends Seeder
 {
@@ -15,21 +17,28 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // User::factory(10)->create();
+        // 1) Seed roles (our new naming)
+        $adminRole = Role::firstOrCreate(['name' => 'Admin']);
+        $agentRole = Role::firstOrCreate(['name' => 'Agent']);
+        $userRole  = Role::firstOrCreate(['name' => 'User']);
 
-        // User::factory()->create([
-            // 'name' => 'Test User',
-            // 'email' => 'test@example.com',
-        // ]);
+        // 2) Seed main admin user
+        User::firstOrCreate(
+            ['email' => 'admin@example.com'],
+            [
+                'name'     => 'Main Admin',
+                'password' => Hash::make('Admin123!'), // change later
+                'role_id'  => $adminRole->id,
+            ]
+        );
 
+        // 3) Other seeders you actually need
         $this->call([
-            RolesTableSeeder::class,
-            AdminUserSeeder::class,
-     ]);
-     
-     $this->call([
-    CurrencySeeder::class,
-    ]);
+            CurrencySeeder::class,
+            CountrySeeder::class,
+            TransferMethodSeeder::class,
+        ]);
 
     }
+    
 }

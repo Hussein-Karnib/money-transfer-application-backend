@@ -14,32 +14,35 @@ use Illuminate\Support\Str;
 class AuthController extends Controller
 {
     
-    public function register(Request $request)
+     public function register(Request $request)
     {
+       
         $data = $request->validate([
-            'name'     => 'required|string|max:255',
-            'email'    => 'required|email|unique:users,email',
-            'password' => 'required|string|min:6',
-            'phone'    => 'required|string|max:20',
-            'role_id'  => 'nullable|integer|exists:roles,id',
+            'name'     => ['required', 'string', 'max:255'],
+            'email'    => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
+            'password' => ['required', 'string', 'min:8'],
         ]);
 
-        $defaultRoleId = 3; 
+        // Get the "User" role – this is the ONLY role allowed via public register
+        $userRole = Role::where('name', 'User')->firstOrFail();
 
         $user = User::create([
             'name'     => $data['name'],
             'email'    => $data['email'],
             'password' => Hash::make($data['password']),
-            'phone'    => $data['phone'],
-            'role_id'  => $data['role_id'] ?? $defaultRoleId,
-            'status'   => 'active',
+            'role_id'  => $userRole->id, 
         ]);
 
-        $token = $user->createToken('mobile-token')->plainTextToken;
+        // If you're using Sanctum:
+        $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
-            'user'  => $user,
-            'token' => $token,
+            'success' => true,
+            'message' => 'User registered successfully.',
+            'data'    => [
+                'user'  => $user,
+                'token' => $token,
+            ],
         ], 201);
     }
     public function login(Request $request)

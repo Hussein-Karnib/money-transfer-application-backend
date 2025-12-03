@@ -8,7 +8,7 @@ use App\Models\Transfer_Fee;
 use App\Models\Promotion;
 use App\Models\Beneficiary;
 use App\Models\User;
-use App\Models\User_Verification;
+use App\Models\UserVerification;
 use App\Services\ExchangeRateService;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
@@ -183,11 +183,11 @@ class TransferService
     }
 
   
-    private function getSenderCountryId(int $userId): int
+   public function getSenderCountryId(int $userId): int
     {
         // Try to get from user's verification
         
-        $verification = User_Verification::where('user_id', $userId)
+        $verification = UserVerification::where('user_id', $userId)
             ->where('status', 'approved')
             ->latest()
             ->first();

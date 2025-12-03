@@ -1,10 +1,11 @@
 
-Seeder(currencies):
+Seeder+ migration fresh:
 
-php artisan db:seed --class=CurrencySeeder
+php artisan migrate:fresh --seed
 
 
 Inserts(roles):
+
 INSERT INTO transfer_methods (id, name, description, created_at, updated_at) VALUES
   (1, 'Bank Deposit', 'Send directly to a bank account', NOW(), NOW()),
   (2, 'Cash Pickup', 'Pickup cash at an agent location', NOW(), NOW());
@@ -33,6 +34,12 @@ Login:
     "password": "12345678"
 }
 
+Admin Login:
+
+{
+    "email": "admin@example.com",
+    "password": "Admin123!"
+}
 
 KYC:
 {

@@ -96,22 +96,36 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     Route::get('/me',  [UserController::class, 'me']);
     Route::put('/me',  [UserController::class, 'update']);
+    
+Route::middleware(['auth:sanctum'])->group(function () {
 
-    // ---- KYC ----
+    // User KYC submit + view (any logged-in user)
     Route::post('/kyc', [UserVerificationController::class, 'store']);
     Route::get('/kyc',  [UserVerificationController::class, 'show']);
 
-    // ---- Bank Accounts (require verified KYC) ----
-    Route::middleware('kyc_verified')->group(function () {
-        Route::prefix('bank-accounts')->group(function () {
-            Route::get('/',              [UserBankAccountController::class, 'index']);
-            Route::post('/',             [UserBankAccountController::class, 'store']);
-            Route::get('/{id}',          [UserBankAccountController::class, 'show']);
-            Route::put('/{id}',          [UserBankAccountController::class, 'update']);
-            Route::delete('/{id}',       [UserBankAccountController::class, 'destroy']);
-            Route::post('/{id}/verify',  [UserBankAccountController::class, 'verify']);
-        });
+    // KYC admin (only Admin role by NAME)
+    Route::middleware('role:Admin')->prefix('kyc')->group(function () {
+        Route::get('/pending',       [UserVerificationController::class, 'pending']);
+        Route::post('/{id}/approve', [UserVerificationController::class, 'approve']);
+        Route::post('/{id}/reject',  [UserVerificationController::class, 'reject']);
     });
+
+    // Bank Accounts – no role restriction, just KYC verified
+    // Actions for the CUSTOMER (must have KYC)
+Route::middleware('kyc_verified')->prefix('bank-accounts')->group(function () {
+    Route::get('/',      [UserBankAccountController::class, 'index']);
+    Route::post('/',     [UserBankAccountController::class, 'store']);
+    Route::get('/{id}',  [UserBankAccountController::class, 'show']);
+    Route::put('/{id}',  [UserBankAccountController::class, 'update']);
+    Route::delete('/{id}', [UserBankAccountController::class, 'destroy']);
+});
+
+// Verification by Admin/Agent (no KYC needed on THEIR account)
+Route::middleware(['auth:sanctum', 'role:Admin'])
+    ->post('/bank-accounts/{id}/verify', [UserBankAccountController::class, 'verify']);
+
+});
+
 
     // ---- Beneficiaries ----
     Route::prefix('beneficiaries')->group(function () {
