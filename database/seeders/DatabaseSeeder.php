@@ -37,6 +37,7 @@ class DatabaseSeeder extends Seeder
             CurrencySeeder::class,
             CountrySeeder::class,
             TransferMethodSeeder::class,
+            PromotionSeeder::class,
         ]);
 
     }
