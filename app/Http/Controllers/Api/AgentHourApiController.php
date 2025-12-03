@@ -31,7 +31,11 @@ class AgentHourApiController extends Controller
      */
     public function update(Request $request, Agent $agent): JsonResponse
     {
-        $this->ensureCanModify($agent);
+        // Check permissions first
+        $permissionCheck = $this->checkCanModify($agent);
+        if ($permissionCheck !== true) {
+            return $permissionCheck;
+        }
 
         $validator = Validator::make($request->all(), [
             'hours' => ['required', 'array', 'size:7'],
@@ -60,58 +64,94 @@ class AgentHourApiController extends Controller
             }
         });
 
-        $validated = $validator->validate();
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed.',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
 
-        DB::transaction(function () use ($validated, $agent) {
-            $byDay = collect($validated['hours'])->keyBy(fn ($entry) => (int) $entry['day']);
+        $validated = $validator->validated();
 
-            foreach (range(0, 6) as $day) {
-                $entry = $byDay->get($day, ['is_closed' => true]);
-                $isClosed = (bool)($entry['is_closed'] ?? false);
+        try {
+            DB::transaction(function () use ($validated, $agent) {
+                $byDay = collect($validated['hours'])->keyBy(fn ($entry) => (int) $entry['day']);
 
-                Agent_Hour::updateOrCreate(
-                    [
-                        'agent_id' => $agent->id,
-                        'day_of_week' => $day,
-                    ],
-                    [
-                        'open_time' => $isClosed ? null : $entry['open_time'],
-                        'close_time' => $isClosed ? null : $entry['close_time'],
-                        'is_closed' => $isClosed,
-                    ]
-                );
-            }
-        });
+                foreach (range(0, 6) as $day) {
+                    $entry = $byDay->get($day, ['is_closed' => true]);
+                    $isClosed = (bool)($entry['is_closed'] ?? false);
 
-        $agent->load('hours');
+                    Agent_Hour::updateOrCreate(
+                        [
+                            'agent_id' => $agent->id,
+                            'day_of_week' => $day,
+                        ],
+                        [
+                            'open_time' => $isClosed ? null : $entry['open_time'],
+                            'close_time' => $isClosed ? null : $entry['close_time'],
+                            'is_closed' => $isClosed,
+                        ]
+                    );
+                }
+            });
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Working hours updated successfully.',
-            'data' => $this->formatSchedule($agent),
-        ]);
+            $agent->load('hours');
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Working hours updated successfully.',
+                'data' => $this->formatSchedule($agent),
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Agent hours update error: ' . $e->getMessage(), [
+                'agent_id' => $agent->id,
+                'user_id' => Auth::id(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update working hours.',
+                'error' => config('app.debug') ? $e->getMessage() : 'An error occurred.',
+            ], 500);
+        }
     }
 
     /**
-     * Ensure the authenticated user can modify the agent.
+     * Check if the authenticated user can modify the agent.
+     * Returns true if allowed, or a JsonResponse if not allowed.
      */
-    protected function ensureCanModify(Agent $agent): void
+    protected function checkCanModify(Agent $agent): bool|JsonResponse
     {
         $user = Auth::user();
 
         if (! $user) {
-            abort(401, 'Authentication required.');
+            return response()->json([
+                'success' => false,
+                'message' => 'Authentication required.',
+            ], 401);
         }
 
+        // Load the role relationship if not already loaded
+        if (!$user->relationLoaded('role')) {
+            $user->load('role');
+        }
+
+        // Check if user owns this agent
         if ($user->id === $agent->user_id) {
-            return;
+            return true;
         }
 
-        if ($user->role && $user->role->name === 'admin') {
-            return;
+        // Check if user is admin (case-insensitive)
+        if ($user->role && strtolower($user->role->name) === 'admin') {
+            return true;
         }
 
-        abort(403, 'You are not allowed to update these hours.');
+        return response()->json([
+            'success' => false,
+            'message' => 'You are not allowed to update these hours.',
+        ], 403);
     }
 
     /**

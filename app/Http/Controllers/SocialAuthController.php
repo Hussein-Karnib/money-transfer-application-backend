@@ -24,14 +24,12 @@ class SocialAuthController extends Controller
         try {
             $socialUser = Socialite::driver($provider)->user();
         } catch (\Exception $e) {
-            return redirect('/login')->with('error', 'Failed to login with ' . $provider);
+            return redirect()->route('home')->with('error', 'Failed to login with ' . $provider);
         }
 
-        $user = User::where('provider_name', $provider)
-                    ->where('provider_id', $socialUser->getId())
-                    ->first();
+        $user = null;
 
-        if (! $user && $socialUser->getEmail()) {
+        if ($socialUser->getEmail()) {
             $user = User::where('email', $socialUser->getEmail())->first();
         }
 
@@ -40,15 +38,11 @@ class SocialAuthController extends Controller
                 'name'          => $socialUser->getName() ?: $socialUser->getNickname() ?: 'User',
                 'email'         => $socialUser->getEmail(),
                 'password'      => bcrypt(Str::random(32)), 
-                'provider_name' => $provider,
-                'provider_id'   => $socialUser->getId(),
                 'avatar_url'    => $socialUser->getAvatar(),
-                'role_id'    => 3 ,
+                'role_id'       => 3,
             ]);
         } else {
             $user->update([
-                'provider_name' => $provider,
-                'provider_id'   => $socialUser->getId(),
                 'avatar_url'    => $socialUser->getAvatar(),
             ]);
         }
@@ -57,9 +51,7 @@ class SocialAuthController extends Controller
 
         $token = $user->createToken('api-token')->plainTextToken;
 
-
         return redirect()->away('http://localhost:19006/social-success?token=' . $token);
-        // ^ adjust to your frontend URL / deep link
     }
 
     protected function validateProvider(string $provider): void

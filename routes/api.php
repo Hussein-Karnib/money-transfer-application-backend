@@ -49,6 +49,31 @@ Route::post('/auth/register', [AuthController::class, 'register']);
 Route::post('/auth/login',    [AuthController::class, 'login']);
 Route::post('/auth/social',   [AuthController::class, 'socialLogin']);
 
+// Temporary endpoint to create Agent records for existing users
+// Remove this after running it once
+Route::post('/admin/create-missing-agents', function () {
+    $usersWithoutAgents = User::whereHas('role', function ($query) {
+        $query->whereIn('name', ['Agent', 'agent']);
+    })->whereDoesntHave('agent')->get();
+
+    $created = 0;
+    foreach ($usersWithoutAgents as $user) {
+        Agent::create([
+            'user_id' => $user->id,
+            'store_name' => $user->name . "'s Store",
+            'address' => null,
+            'status' => 'pending',
+        ]);
+        $created++;
+    }
+
+    return response()->json([
+        'success' => true,
+        'message' => "Created {$created} agent records for existing users.",
+        'created' => $created,
+    ]);
+});
+
 /*
 |--------------------------------------------------------------------------
 | AGENT PUBLIC / PROTECTED API (from teammates)
