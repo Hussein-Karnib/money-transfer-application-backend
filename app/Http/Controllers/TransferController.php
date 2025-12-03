@@ -14,6 +14,17 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use App\Http\Controllers\AuditLogController;
 
+/*
+ Transfer Statuses:
+ - queued: Transfer created but payment not yet made
+ - paid: Payment authorized but not captured
+ - in_progress: Payment captured, transfer being processed
+ - available_for_pickup: Ready for beneficiary to collect (if agent-based)
+ - completed: Transfer successfully completed
+ - failed: Transfer failed
+ - refunded: Transfer was refunded
+ - disputed: Transfer is under dispute
+ */
 class TransferController extends Controller
 {
     public function __construct(
