@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rules;
+use App\Http\Controllers\AuditLogController;
 
 class AgentController extends Controller
 {
@@ -72,7 +73,7 @@ class AgentController extends Controller
             ]);
 
             // 2. Create the Agent Profile (Status defaults to 'pending')
-            Agent::create([
+            $agent = Agent::create([
                 'user_id' => $user->id,
                 'store_name' => $validated['store_name'],
                 'address' => $validated['address'],
@@ -80,6 +81,14 @@ class AgentController extends Controller
                 'longitude' => $validated['longitude'] ?? null,
                 'status' => 'pending', 
             ]);
+
+            AuditLogController::logSystemAction(
+                $user->id,
+                'create_agent',
+                'agents',
+                $agent->id,
+                ['store_name' => $agent->store_name]
+            );
         });
 
         return redirect()->route('login')->with('success', 'Registration successful! Your account is pending admin approval.');
@@ -118,6 +127,14 @@ class AgentController extends Controller
         ]);
 
         $agent->update($validated);
+
+        AuditLogController::logSystemAction(
+            Auth::id(),
+            'update_agent',
+            'agents',
+            $agent->id,
+            ['changes' => $validated]
+        );
 
         return redirect()->route('agents.show', $agent)->with('success', 'Store details updated.');
     }
