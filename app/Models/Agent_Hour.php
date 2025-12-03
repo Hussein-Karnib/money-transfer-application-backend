@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class Agent_Hour extends Model
 {
+    protected $table = 'agent_hours';
+    
     public $timestamps = false;
     protected $primaryKey = null;
     public $incrementing = false;
