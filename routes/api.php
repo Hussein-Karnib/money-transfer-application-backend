@@ -56,13 +56,11 @@ Route::post('/auth/social',   [AuthController::class, 'socialLogin']);
 */
 
 // Public agent hours (no login required)
-Route::get(
-    '/agents/{agent}/hours',
-    [AgentHourApiController::class, 'show']
+Route::get('/agents/{agent}/hours',[AgentHourApiController::class, 'show']
 )->name('api.agents.hours.show');
 
-// Protected agent APIs (session auth via "web" guard)
-Route::middleware(['web', 'auth'])->group(function () {
+// Protected agent APIs (session auth via "web" guard OR Sanctum token)
+Route::middleware(['auth:sanctum'])->group(function () {
     Route::put(
         '/agents/{agent}/hours',
         [AgentHourApiController::class, 'update']
