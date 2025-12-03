@@ -52,8 +52,9 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->grou
     Route::resource('reports', ReportController::class)->only(['index', 'create', 'store', 'destroy']);
 
     // --- Audit Logs ---
-    Route::delete('/audit-logs/prune', [AuditLogController::class, 'prune'])->name('audit_logs.prune');
-    Route::resource('audit-logs', AuditLogController::class)->only(['index', 'show']);
+    Route::delete('/auditTable/prune', [AuditLogController::class, 'prune'])->name('auditTable.prune');
+    Route::get('/auditTable', [AuditLogController::class, 'index'])->name('auditTable');
+    Route::get('/auditTable/{id}', [AuditLogController::class, 'show'])->name('auditTable.show');
 
     // --- Manage Agents (Approvals & Oversight) ---
     Route::get('/agents', [AgentController::class, 'index'])->name('agents.index'); // List view

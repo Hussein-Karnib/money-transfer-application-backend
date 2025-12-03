@@ -6,6 +6,7 @@ use App\Models\Beneficiary;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use App\Http\Controllers\AuditLogController;
 
 /*
  Example payout_details for bank transfer:
@@ -66,6 +67,14 @@ class BeneficiaryController extends Controller
             'payout_details' => $request->payout_details ?? [],
         ]);
 
+        AuditLogController::logSystemAction(
+            Auth::id(),
+            'create_beneficiary',
+            'beneficiaries',
+            $beneficiary->id,
+            ['full_name' => $beneficiary->full_name]
+        );
+
         return response()->json([
             'success' => true,
             'message' => 'Beneficiary added successfully',
@@ -102,6 +111,14 @@ class BeneficiaryController extends Controller
 
         $beneficiary->update($request->only(['full_name', 'country_id', 'transfer_method_id', 'payout_details']));
 
+        AuditLogController::logSystemAction(
+            Auth::id(),
+            'update_beneficiary',
+            'beneficiaries',
+            $beneficiary->id,
+            ['changes' => $request->only(['full_name', 'country_id', 'transfer_method_id', 'payout_details'])]
+        );
+
         return response()->json([
             'success' => true,
             'message' => 'Beneficiary updated successfully',
@@ -116,6 +133,14 @@ class BeneficiaryController extends Controller
             ->firstOrFail();
 
         $beneficiary->delete();
+
+        AuditLogController::logSystemAction(
+            Auth::id(),
+            'delete_beneficiary',
+            'beneficiaries',
+            $id,
+            []
+        );
 
         return response()->json([
             'success' => true,

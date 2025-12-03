@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use App\Models\UserVerification;
+use App\Http\Controllers\AuditLogController;
 
 class UserVerificationController extends Controller
 {
@@ -45,6 +46,14 @@ class UserVerificationController extends Controller
             'document_path' => $path,         // column in DB
             'status'        => 'pending',
         ]);
+
+        AuditLogController::logSystemAction(
+            $user->id,
+            'submit_verification',
+            'user_verifications',
+            $verification->id,
+            ['id_type' => $data['id_type']]
+        );
 
         return response()->json([
             'success' => true,
