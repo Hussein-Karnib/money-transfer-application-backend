@@ -109,9 +109,10 @@
         <h2>Admin Panel</h2>
         <ul class="nav-links">
             <li><a href="{{ route('admin.dashboard') }}">Dashboard</a></li>
-            <li><a href="#">Reports</a></li>
+            <li><a href="{{ route('admin.reports') }}">Reports</a></li>
             <li><a href="{{ route('admin.auditTable') }}">Audit Logs</a></li>
             <li><a href="{{ route('admin.statistics') }}">Statistics</a></li>
+            <li><a href="{{ route('admin.approvals') }}">Approvals</a></li>
             <li>
                 <form method="POST" action="#" id="logout-form">
                     @csrf

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Report;
 use App\Models\Transfer; // Assuming you have this model based on schema
 use App\Models\User;
+use App\Models\Agent;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
@@ -20,7 +21,7 @@ class ReportController extends Controller
     {
         // Show newest reports first
         $reports = Report::with('author')->latest('generated_at')->paginate(10);
-        return view('admin.reports.index', compact('reports'));
+        return view('admin.reports', compact('reports'));
     }
 
     /**
@@ -37,30 +38,78 @@ class ReportController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'type' => 'required|in:transactions,users,performance',
+            'type' => 'required|in:transactions,platform_usage,feedback',
             'start_date' => 'required|date',
             'end_date' => 'required|date|after_or_equal:start_date',
         ]);
 
         $type = $request->type;
-        $startDate = Carbon::parse($request->start_date);
-        $endDate = Carbon::parse($request->end_date);
+        $startDate = Carbon::parse($request->start_date)->startOfDay();
+        $endDate = Carbon::parse($request->end_date)->endOfDay();
 
         // 1. Fetch Data based on Type
         $data = [];
+        $headers = [];
+        
         if ($type === 'transactions') {
-            // Example: Fetch transfers within date range
-            // Note: Ensure Transfer model exists or replace with DB query
-            $data = Transfer::whereBetween('created_at', [$startDate, $endDate])->get();
-        } elseif ($type === 'users') {
-            $data = User::whereBetween('created_at', [$startDate, $endDate])->get();
+            $data = Transfer::with(['sender', 'beneficiary'])
+                ->whereBetween('created_at', [$startDate, $endDate])
+                ->get();
+            $headers = ['ID', 'Sender', 'Beneficiary', 'Amount', 'Currency', 'Status', 'Date'];
+        } elseif ($type === 'platform_usage') {
+            // Aggregate data for platform usage
+            $newUsers = User::whereBetween('created_at', [$startDate, $endDate])->count();
+            $newAgents = Agent::whereBetween('created_at', [$startDate, $endDate])->count();
+            $activeAgents = Agent::where('status', 'active')->count(); // Snapshot
+            $totalTransfers = Transfer::whereBetween('created_at', [$startDate, $endDate])->count();
+            
+            // We'll create a single row for this summary report
+            $data = [
+                [
+                    'metric' => 'New Users',
+                    'value' => $newUsers
+                ],
+                [
+                    'metric' => 'New Agents',
+                    'value' => $newAgents
+                ],
+                [
+                    'metric' => 'Active Agents (Current)',
+                    'value' => $activeAgents
+                ],
+                [
+                    'metric' => 'Total Transfers',
+                    'value' => $totalTransfers
+                ]
+            ];
+            $headers = ['Metric', 'Value'];
+        } elseif ($type === 'feedback') {
+            // Placeholder for feedback
+            $data = [];
+            $headers = ['ID', 'User', 'Rating', 'Comment', 'Date'];
         }
 
-        // 2. Generate File Content (Simple CSV example)
-        // In a real app, you might use a library like 'laravel-excel' or 'dompdf'
-        $csvContent = "ID,Date,Details\n";
+        // 2. Generate File Content (CSV)
+        $csvContent = implode(',', $headers) . "\n";
+        
         foreach ($data as $item) {
-            $csvContent .= "{$item->id},{$item->created_at},Generated Item\n";
+            $row = [];
+            if ($type === 'transactions') {
+                $row[] = $item->id;
+                $row[] = $item->sender ? $item->sender->name : 'N/A';
+                $row[] = $item->beneficiary ? $item->beneficiary->name : 'N/A';
+                $row[] = $item->amount;
+                $row[] = $item->currency_from;
+                $row[] = $item->status;
+                $row[] = $item->created_at;
+            } elseif ($type === 'platform_usage') {
+                $row[] = $item['metric'];
+                $row[] = $item['value'];
+            } elseif ($type === 'feedback') {
+                // Empty for now
+            }
+            
+            $csvContent .= implode(',', $row) . "\n";
         }
 
         // 3. Define File Path
@@ -82,7 +131,7 @@ class ReportController extends Controller
             ],
         ]);
 
-        return redirect()->route('reports.index')->with('success', 'Report generated successfully.');
+        return redirect()->route('admin.reports')->with('success', 'Report generated successfully.');
     }
 
     /**
@@ -110,7 +159,7 @@ class ReportController extends Controller
         // Delete DB record
         $report->delete();
 
-        return redirect()->route('reports.index')->with('success', 'Report deleted.');
+        return redirect()->route('admin.reports')->with('success', 'Report deleted.');
     }
 }
 
