@@ -2,10 +2,14 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Database\Factories\TransferFeeFactory;
 
 class Transfer_Fee extends Model
 {
+    use HasFactory;
+
     // Explicitly set table name to match migration
     protected $table = 'transfer_fees';
     
@@ -27,5 +31,10 @@ class Transfer_Fee extends Model
     public function countryTo()
     {
         return $this->belongsTo(Country::class, 'country_to_id');
+    }
+
+    protected static function newFactory()
+    {
+        return TransferFeeFactory::new();
     }
 }

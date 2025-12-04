@@ -2,10 +2,14 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Database\Factories\AgentTransactionFactory;
 
 class Agent_Transaction extends Model
 {
+    use HasFactory;
+
     protected $table = 'agent_transactions';
 
     protected $fillable = [
@@ -26,5 +30,10 @@ class Agent_Transaction extends Model
     public function transfer()
     {
         return $this->belongsTo(Transfer::class);
+    }
+
+    protected static function newFactory()
+    {
+        return AgentTransactionFactory::new();
     }
 }

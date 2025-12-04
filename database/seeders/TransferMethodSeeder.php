@@ -3,7 +3,7 @@
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\DB;
+use App\Models\Transfer_Method;
 
 class TransferMethodSeeder extends Seeder
 {
@@ -40,7 +40,14 @@ class TransferMethodSeeder extends Seeder
             ],
         ];
 
-        DB::table('transfer_methods')->insert($methods);
+        foreach ($methods as $method) {
+            Transfer_Method::updateOrCreate(
+                [
+                    'name' => $method['name'],
+                    'description' => $method['description'],
+                ],
+                $method
+            );
+        }
     }
 }
-
