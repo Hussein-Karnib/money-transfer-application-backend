@@ -83,6 +83,8 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->grou
     
     // --- Dashboard ---
     Route::get('/dashboard', [StatisticController::class, 'dashboard'])->name('dashboard');
+    Route::get('/approvals', [AdminController::class, 'approvals'])->name('approvals');
+    Route::patch('/users/{user}/approve', [AdminController::class, 'approveUser'])->name('users.approve');
 
     // --- Manage System Admins ---
     Route::resource('admins', AdminController::class);
