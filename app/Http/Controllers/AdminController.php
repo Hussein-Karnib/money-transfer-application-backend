@@ -115,4 +115,25 @@ class AdminController extends Controller
 
         return redirect()->route('admins.index')->with('success', 'Admin privileges revoked.');
     }
+
+    /**
+     * Display a listing of pending agents and new users.
+     */
+    public function approvals()
+    {
+        $pendingAgents = \App\Models\Agent::where('status', 'pending')->with('user')->get();
+        $newUsers = \App\Models\User::orderBy('created_at', 'desc')->limit(10)->get();
+        
+        return view('admin.approvals', compact('pendingAgents', 'newUsers'));
+    }
+
+    /**
+     * Approve a new user.
+     */
+    public function approveUser(User $user)
+    {
+        $user->update(['status' => 'active']); // Assuming 'active' is the approved status for users
+        
+        return redirect()->back()->with('success', 'User approved successfully.');
+    }
 }

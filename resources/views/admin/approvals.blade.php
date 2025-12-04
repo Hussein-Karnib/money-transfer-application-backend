@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Reports</title>
+    <title>Admin Approvals</title>
     <style>
         body {
             font-family: sans-serif;
@@ -86,6 +86,7 @@
             width: 100%;
             border-collapse: collapse;
             margin-top: 20px;
+            margin-bottom: 40px;
         }
 
         th, td {
@@ -98,23 +99,19 @@
             background-color: #f2f2f2;
         }
         
-        .form-container {
-            margin-bottom: 20px;
-            padding: 15px;
-            border: 1px solid black;
+        h3 {
+            margin-top: 0;
         }
-        
-        .form-container label {
-            margin-right: 10px;
+
+        .action-form {
+            display: inline;
         }
-        
-        .form-container input, .form-container select {
-            margin-right: 20px;
-            padding: 5px;
-        }
-        
-        button {
-            padding: 5px 10px;
+
+        .action-btn {
+            border: none; 
+            background: none; 
+            color: blue; 
+            text-decoration: underline; 
             cursor: pointer;
         }
     </style>
@@ -130,7 +127,7 @@
             <li><a href="{{ route('admin.statistics') }}">Statistics</a></li>
             <li><a href="{{ route('admin.approvals') }}">Approvals</a></li>
             <li>
-                <form method="POST" action="#" id="logout-form">
+                <form method="POST" action="{{ route('auth.logout') }}" id="logout-form">
                     @csrf
                     <button type="submit" class="logout-btn">Logout</button>
                 </form>
@@ -140,59 +137,75 @@
 
     <div class="main-content">
         <div class="header">
-            <h1>Reports</h1>
+            <h1>Approvals & New Users</h1>
             <div class="user-info">
                 Welcome
             </div>
         </div>
-        
-        <div class="form-container">
-            <h3>Generate Report</h3>
-            <form action="{{ route('admin.reports.store') }}" method="POST">
-                @csrf
-                <label>Type:</label>
-                <select name="type">
-                    <option value="platform_usage">Platform Usage</option>
-                    <option value="transactions">Transactions</option>
-                    <option value="feedback">Feedback</option>
-                </select>
-                
-                <label>Start:</label>
-                <input type="date" name="start_date" required>
-                
-                <label>End:</label>
-                <input type="date" name="end_date" required>
-                
-                <button type="submit">Generate CSV</button>
-            </form>
-        </div>
 
-        <h3>History</h3>
-        <table>
-            <thead>
-                <tr>
-                    <th>Type</th>
-                    <th>Date</th>
-                    <th>Action</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach($reports as $report)
-                <tr>
-                    <td>{{ $report->type }}</td>
-                    <td>{{ $report->generated_at }}</td>
-                    <td>
-                        <a href="{{ route('admin.reports.download', $report) }}">Download</a>
-                        <form action="{{ route('admin.reports.destroy', $report) }}" method="POST" style="display:inline;">
-                            @csrf
-                            @method('DELETE')
-                            <button type="submit" style="border:none; background:none; color:blue; text-decoration:underline;">Delete</button>
-                        </form>
-                    </td>
-                </tr>
-                @endforeach
-            </tbody>
-        </table>
+        <h3>Pending Agents</h3>
+        @if($pendingAgents->isEmpty())
+            <p>No pending agents.</p>
+        @else
+            <table>
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Store Name</th>
+                        <th>Email</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($pendingAgents as $agent)
+                    <tr>
+                        <td>{{ $agent->user->name ?? 'N/A' }}</td>
+                        <td>{{ $agent->store_name }}</td>
+                        <td>{{ $agent->user->email ?? 'N/A' }}</td>
+                        <td>
+                            <form action="{{ route('admin.agents.update_status', $agent->id) }}" method="POST" class="action-form">
+                                @csrf
+                                @method('PATCH')
+                                <input type="hidden" name="status" value="approved">
+                                <button type="submit" class="action-btn">Approve</button>
+                            </form>
+                        </td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        @endif
+
+        <h3>New Users</h3>
+        @if($newUsers->isEmpty())
+            <p>No new users.</p>
+        @else
+            <table>
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($newUsers as $user)
+                    <tr>
+                        <td>{{ $user->name }}</td>
+                        <td>{{ $user->email }}</td>
+                        <td>
+                            <form action="{{ route('admin.users.approve', $user->id) }}" method="POST" class="action-form">
+                                @csrf
+                                @method('PATCH')
+                                <button type="submit" class="action-btn">Approve</button>
+                            </form>
+                        </td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        @endif
     </div>
+
 </body>
 </html>
