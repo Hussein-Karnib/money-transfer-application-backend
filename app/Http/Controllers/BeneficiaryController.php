@@ -66,7 +66,7 @@ class BeneficiaryController extends Controller
         "bank_account_id": 3
       }
      */
-   public function store(Request $request): JsonResponse
+    public function store(Request $request)
 {
     $data = $request->validate([
         'full_name'           => ['required', 'string', 'max:255'],
@@ -227,16 +227,22 @@ class BeneficiaryController extends Controller
         'payout_details'     => $payoutDetails,
     ]);
 
-    return response()->json([
-        'success' => true,
-        'message' => 'Beneficiary added successfully',
-        'data'    => $beneficiary->load(['country', 'method']),
-    ], 201);
+    // Check if this is a web request
+    if ($request->wantsJson() || $request->is('api/*')) {
+        return response()->json([
+            'success' => true,
+            'message' => 'Beneficiary added successfully',
+            'data'    => $beneficiary->load(['country', 'method']),
+        ], 201);
+    }
+
+    // Web request - redirect back with success message
+    return redirect()->route('app.beneficiaries.index')->with('success', 'Beneficiary added successfully');
 }
 
 
 
-    public function destroy(int $id): JsonResponse
+    public function destroy(Request $request, int $id)
     {
         $beneficiary = Beneficiary::where('id', $id)
             ->where('user_id', Auth::id())
@@ -252,10 +258,16 @@ class BeneficiaryController extends Controller
             []
         );
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Beneficiary deleted successfully',
-        ]);
+        // Check if this is a web request
+        if ($request->wantsJson() || $request->is('api/*')) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Beneficiary deleted successfully',
+            ]);
+        }
+
+        // Web request - redirect back with success message
+        return redirect()->route('app.beneficiaries.index')->with('success', 'Beneficiary deleted successfully');
     }
 
     // =========================================================

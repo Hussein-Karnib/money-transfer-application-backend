@@ -43,7 +43,7 @@ class UserBankAccountController extends Controller
         ]);
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(Request $request)
     {
         // Validate the input data
         $data = $request->validate([
@@ -84,11 +84,17 @@ class UserBankAccountController extends Controller
 
         $account->load('currency');
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Bank account added successfully',
-            'data'    => $this->formatAccount($account, $brand, $last4, $masked),
-        ], 201);
+        // Check if this is a web request
+        if ($request->wantsJson() || $request->is('api/*')) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Bank account added successfully',
+                'data'    => $this->formatAccount($account, $brand, $last4, $masked),
+            ], 201);
+        }
+
+        // Web request - redirect back with success message
+        return redirect()->route('app.bank-accounts.index')->with('success', 'Bank account added successfully');
     }
 
     public function show(int $id): JsonResponse
@@ -127,7 +133,7 @@ public function update(Request $request, int $id): JsonResponse
     ]);
 }
 
-public function destroy(int $id): JsonResponse
+public function destroy(Request $request, int $id)
 {
     $account = UserBankAccount::where('id', $id)
         ->where('user_id', Auth::id())
@@ -143,10 +149,16 @@ public function destroy(int $id): JsonResponse
         []
     );
 
-    return response()->json([
-        'success' => true,
-        'message' => 'Bank account deleted successfully',
-    ]);
+    // Check if this is a web request
+    if ($request->wantsJson() || $request->is('api/*')) {
+        return response()->json([
+            'success' => true,
+            'message' => 'Bank account deleted successfully',
+        ]);
+    }
+
+    // Web request - redirect back with success message
+    return redirect()->route('app.bank-accounts.index')->with('success', 'Bank account deleted successfully');
 }
 
 
