@@ -314,6 +314,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/auth/logout', [AuthController::class, 'logout'])->name('auth.logout');
     
     // Transfer actions
+    Route::get('/transfers/summary', [TransferController::class, 'summary'])->name('transfers.summary');
     Route::post('/transfers', [TransferController::class, 'store'])->name('transfers.store');
     Route::get('/transfers/{transfer}', function (App\Models\Transfer $transfer) {
         $transfer->load(['beneficiary.country', 'beneficiary.method', 'events', 'payment']);
