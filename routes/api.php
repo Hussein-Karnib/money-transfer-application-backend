@@ -194,4 +194,11 @@ Route::middleware(['auth:sanctum', 'role:Admin'])
         Route::put('/{id}',        [TransferFeeController::class, 'update']);  // Admin usage
         Route::delete('/{id}',     [TransferFeeController::class, 'destroy']); // Admin usage
     });
+
+    // ---- Chat ----
+    Route::prefix('chat')->group(function () {
+        Route::post('/send', [\App\Http\Controllers\ChatController::class, 'sendMessage']);
+        Route::get('/messages/{userId}', [\App\Http\Controllers\ChatController::class, 'getMessages']);
+        Route::post('/messages/{id}/read', [\App\Http\Controllers\ChatController::class, 'markAsRead']);
+    });
 });

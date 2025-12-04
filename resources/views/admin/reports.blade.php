@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Statistics</title>
+    <title>Admin Reports</title>
     <style>
         body {
             font-family: sans-serif;
@@ -47,6 +47,21 @@
             background-color: silver;
             color: blue;
         }
+        
+        .logout-btn {
+            background: none;
+            border: none;
+            color: white;
+            cursor: pointer;
+            padding: 10px;
+            text-align: left;
+            width: 100%;
+        }
+        
+        .logout-btn:hover {
+             background-color: silver;
+             color: blue;
+        }
 
         .header {
             display: flex;
@@ -62,51 +77,45 @@
             font-weight: bold;
         }
 
+        .main-content {
+            flex: 1;
+            padding: 20px;
+        }
+
         table {
             width: 100%;
             border-collapse: collapse;
-            background: white;
-            border: 1px solid black;
+            margin-top: 20px;
         }
 
         th, td {
-            padding: 15px;
+            border: 1px solid black;
+            padding: 8px;
             text-align: left;
-            border-bottom: 1px solid gray;
         }
 
         th {
-            background-color: silver;
-            font-weight: bold;
-            color: black;
+            background-color: #f2f2f2;
         }
-
-        tr:hover {
-            background-color: silver;
-        }
-
-        .search-container {
+        
+        .form-container {
             margin-bottom: 20px;
             padding: 15px;
-            background-color: white;
-            border: 1px solid gray;
+            border: 1px solid black;
         }
-
-        .search-container input {
-            padding: 5px;
+        
+        .form-container label {
             margin-right: 10px;
         }
-
-        .search-container button {
-            padding: 5px 10px;
-            background-color: silver;
-            border: 1px solid gray;
-            cursor: pointer;
+        
+        .form-container input, .form-container select {
+            margin-right: 20px;
+            padding: 5px;
         }
-
-        .search-container button:hover {
-            background-color: gray;
-            color: white;
+        
+        button {
+            padding: 5px 10px;
+            cursor: pointer;
         }
     </style>
 </head>
@@ -122,7 +131,7 @@
             <li>
                 <form method="POST" action="#" id="logout-form">
                     @csrf
-                    <a href="#" onclick="alert('Logout clicked'); return false;">Logout</a>
+                    <button type="submit" class="logout-btn">Logout</button>
                 </form>
             </li>
         </ul>
@@ -130,54 +139,57 @@
 
     <div class="main-content">
         <div class="header">
-            <h1>Statistics</h1>
+            <h1>Reports</h1>
             <div class="user-info">
                 Welcome
             </div>
         </div>
-
-        <div class="search-container">
-            <form action="{{ route('searchDate') }}">
-                <label>Start Date:</label>
-                <input type="date" name="from_date" required>
-                <label>End Date:</label>
-                <input type="date" name="to_date" required>
-                <button type="submit">Filter</button>
+        
+        <div class="form-container">
+            <h3>Generate Report</h3>
+            <form action="{{ route('admin.reports.store') }}" method="POST">
+                @csrf
+                <label>Type:</label>
+                <select name="type">
+                    <option value="platform_usage">Platform Usage</option>
+                    <option value="transactions">Transactions</option>
+                    <option value="feedback">Feedback</option>
+                </select>
+                
+                <label>Start:</label>
+                <input type="date" name="start_date" required>
+                
+                <label>End:</label>
+                <input type="date" name="end_date" required>
+                
+                <button type="submit">Generate CSV</button>
             </form>
         </div>
 
+        <h3>History</h3>
         <table>
             <thead>
                 <tr>
-                    <th>Metric</th>
-                    <th>Value</th>
+                    <th>Type</th>
+                    <th>Date</th>
+                    <th>Action</th>
                 </tr>
             </thead>
             <tbody>
+                @foreach($reports as $report)
                 <tr>
-                    <td>Total Users</td>
-                    <td>{{ $data['users_count'] }}</td>
+                    <td>{{ $report->type }}</td>
+                    <td>{{ $report->generated_at }}</td>
+                    <td>
+                        <a href="{{ route('admin.reports.download', $report) }}">Download</a>
+                        <form action="{{ route('admin.reports.destroy', $report) }}" method="POST" style="display:inline;">
+                            @csrf
+                            @method('DELETE')
+                            <button type="submit" style="border:none; background:none; color:blue; text-decoration:underline;">Delete</button>
+                        </form>
+                    </td>
                 </tr>
-                <tr>
-                    <td>Verified Users</td>
-                    <td>{{ $data['verified_users_count'] }}</td>
-                </tr>
-                <tr>
-                    <td>Total Agents</td>
-                    <td>{{ $data['agents_count'] }}</td>
-                </tr>
-                <tr>
-                    <td>Pending Agents</td>
-                    <td>{{ $data['pending_agents_count'] }}</td>
-                </tr>
-                <tr>
-                    <td>Total Transfers</td>
-                    <td>{{ $data['transfers_count'] }}</td>
-                </tr>
-                <tr>
-                    <td>Total Transfer Volume</td>
-                    <td>{{ $data['total_transfer_volume'] }}</td>
-                </tr>
+                @endforeach
             </tbody>
         </table>
     </div>

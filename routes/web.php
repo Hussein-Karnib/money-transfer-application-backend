@@ -201,8 +201,8 @@ Route::middleware(['auth', 'role:agent'])->prefix('portal')->name('portal.')->gr
             'totalCommission',
             'monthlyCommission',
             'todayCommission',
-            'filteredCommission'
         ));
+            'filteredCommission'
     })->name('commissions');
 });
 
