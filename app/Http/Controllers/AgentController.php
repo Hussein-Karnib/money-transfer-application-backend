@@ -92,7 +92,18 @@ class AgentController extends Controller
                     ->first();
             }
             if (!$agentRole) {
-                throw new \Exception('Agent role not found in database. Please run: php artisan db:seed --class=DatabaseSeeder');
+                // Try to seed roles automatically
+                try {
+                    \Artisan::call('db:seed', ['--class' => 'DatabaseSeeder', '--force' => true]);
+                    $agentRole = \App\Models\Role::whereIn('name', ['agent', 'Agent', 'AGENT'])->first() 
+                        ?? \App\Models\Role::find(2);
+                } catch (\Exception $e) {
+                    // If seeding fails, throw the original error
+                }
+                
+                if (!$agentRole) {
+                    throw new \Exception('Agent role not found in database. Please run: php artisan db:seed --class=DatabaseSeeder');
+                }
             }
 
             // 2. Create the User Account with Agent role

@@ -131,7 +131,7 @@ class ReportController extends Controller
             ],
         ]);
 
-        return redirect()->route('admin.reports')->with('success', 'Report generated successfully.');
+        return redirect()->route('admin.reports.index')->with('success', 'Report generated successfully.');
     }
 
     /**
@@ -159,7 +159,7 @@ class ReportController extends Controller
         // Delete DB record
         $report->delete();
 
-        return redirect()->route('admin.reports')->with('success', 'Report deleted.');
+        return redirect()->route('admin.reports.index')->with('success', 'Report deleted.');
     }
 }
 
