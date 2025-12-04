@@ -15,6 +15,7 @@
     use App\Http\Controllers\UserVerificationController;
     use App\Http\Controllers\UserController;
     use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\ReportController;
 
     /*
     |--------------------------------------------------------------------------
@@ -188,6 +189,15 @@
                 Route::delete('/{id}', [TransferFeeController::class, 'destroy'])->name('transfer-fees.destroy');
             });
         });
+
+        // Reports
+        Route::prefix('admin/reports')->group(function () {
+            Route::get('/', [ReportController::class, 'index'])->name('admin.reports');
+            Route::post('/', [ReportController::class, 'store'])->name('admin.reports.store');
+            Route::get('/{report}/download', [ReportController::class, 'download'])->name('admin.reports.download');
+            Route::delete('/{report}', [ReportController::class, 'destroy'])->name('admin.reports.destroy');
+        });
+
         // ================== WEB PAGES (Blade) ==================
 
         // Main dashboard
