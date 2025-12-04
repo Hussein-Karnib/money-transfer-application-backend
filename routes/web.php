@@ -11,6 +11,7 @@ use App\Http\Controllers\AgentController;
 use App\Http\Controllers\AgentHourController;
 use App\Http\Controllers\StatisticController;
 use App\Http\Controllers\TransferController;
+use App\Http\Controllers\TransferSearchController;
 use App\Http\Controllers\BeneficiaryController;
 use App\Http\Controllers\UserBankAccountController;
 use App\Http\Controllers\UserVerificationController;
@@ -262,6 +263,9 @@ Route::middleware(['auth'])->group(function () {
             return view('transfers.create', compact('beneficiaries', 'currencies'));
         })->name('transfers.create');
         
+        // Search transfer services
+        Route::get('/transfers/search', [TransferSearchController::class, 'index'])->name('transfers.search');
+        
         // --- Beneficiaries ---
         // Beneficiaries list view - Load from database
         Route::get('/beneficiaries', function () {
@@ -315,6 +319,7 @@ Route::middleware(['auth'])->group(function () {
     
     // Transfer actions
     Route::get('/transfers/summary', [TransferController::class, 'summary'])->name('transfers.summary');
+    Route::post('/transfers/search', [TransferSearchController::class, 'search'])->name('transfers.search.post');
     Route::post('/transfers', [TransferController::class, 'store'])->name('transfers.store');
     Route::get('/transfers/{transfer}', function (App\Models\Transfer $transfer) {
         $transfer->load(['beneficiary.country', 'beneficiary.method', 'events', 'payment']);

@@ -10,9 +10,14 @@
                 <h1><i class="bi bi-arrow-left-right me-2"></i>My Transfers</h1>
                 <p>View and manage all your money transfers</p>
             </div>
-            <a href="{{ route('app.transfers.create') }}" class="btn btn-primary-modern btn-modern">
-                <i class="bi bi-plus-circle me-2"></i>New Transfer
-            </a>
+            <div class="d-flex gap-2">
+                <a href="{{ route('app.transfers.search') }}" class="btn btn-outline-modern btn-modern">
+                    <i class="bi bi-search me-2"></i>Search Services
+                </a>
+                <a href="{{ route('app.transfers.create') }}" class="btn btn-primary-modern btn-modern">
+                    <i class="bi bi-plus-circle me-2"></i>New Transfer
+                </a>
+            </div>
         </div>
     </div>
 </div>
