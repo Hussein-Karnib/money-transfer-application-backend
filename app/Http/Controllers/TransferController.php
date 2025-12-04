@@ -58,118 +58,124 @@ class TransferController extends Controller
     }
 
     // ---------------------------------------------------------
-    // GET /api/transfers/summary  (preview before creating)
+    // GET /transfers/summary  (preview before creating) - Web only
     // ---------------------------------------------------------
-    public function summary(Request $request): JsonResponse
+    public function summary(Request $request)
     {
-        $validated = $request->validate([
-            'beneficiary_id'         => ['required', 'integer', 'exists:beneficiaries,id'],
-            'amount'                 => ['required', 'numeric', 'min:1'],
-            'currency_from'          => ['required', 'string', 'size:3', 'exists:currencies,code'],
-            'currency_to'            => ['required', 'string', 'size:3', 'exists:currencies,code'],
-            'speed'                  => ['nullable', 'string', 'in:standard,express'],
-            'promo_code'             => ['nullable', 'string', 'max:50'],
-            'destination_country_id' => ['nullable', 'integer', 'exists:countries,id'],
-        ]);
+        // Only allow for API requests, web should use direct form submission
+        if ($request->wantsJson() || $request->is('api/*')) {
+            $validated = $request->validate([
+                'beneficiary_id'         => ['required', 'integer', 'exists:beneficiaries,id'],
+                'amount'                 => ['required', 'numeric', 'min:1'],
+                'currency_from'          => ['required', 'string', 'size:3', 'exists:currencies,code'],
+                'currency_to'            => ['required', 'string', 'size:3', 'exists:currencies,code'],
+                'speed'                  => ['nullable', 'string', 'in:standard,express'],
+                'promo_code'             => ['nullable', 'string', 'max:50'],
+                'destination_country_id' => ['nullable', 'integer', 'exists:countries,id'],
+            ]);
 
-        $userId = Auth::id();
+            $userId = Auth::id();
 
-        $beneficiary = Beneficiary::where('id', $validated['beneficiary_id'])
-            ->where('user_id', $userId)
-            ->with(['country', 'method'])
-            ->firstOrFail();
+            $beneficiary = Beneficiary::where('id', $validated['beneficiary_id'])
+                ->where('user_id', $userId)
+                ->with(['country', 'method'])
+                ->firstOrFail();
 
-        $exchangeRate = $this->exchangeRateService->getRate(
-            $validated['currency_from'],
-            $validated['currency_to']
-        );
+            $exchangeRate = $this->exchangeRateService->getRate(
+                $validated['currency_from'],
+                $validated['currency_to']
+            );
 
-        if ($exchangeRate === null) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Unable to fetch exchange rate',
-            ], 400);
-        }
-
-        $amount              = (float) $validated['amount'];
-        $senderCountryId     = $this->transferService->getSenderCountryId($userId);
-        $destinationCountryId = $validated['destination_country_id'] ?? $beneficiary->country_id;
-
-        // 1) Fee (in sender currency)
-        $fee = (float) $this->transferService->calculateFee(
-            $amount,
-            $senderCountryId,
-            $destinationCountryId
-        );
-
-        // 2) Promotion (applied on FEE, not on whole amount)
-        $promotion      = null;
-        $discountAmount = 0.0;
-
-        if (!empty($validated['promo_code'])) {
-            try {
-                // validate against FEE, not amount
-                [$promotion, $discountAmount] = $this->promotionService->validateAndCalculate(
-                    $validated['promo_code'],
-                    $fee,
-                    $destinationCountryId
-                );
-
-                // never discount more than fee
-                $discountAmount = min($discountAmount, $fee);
-            } catch (\Exception $e) {
+            if ($exchangeRate === null) {
                 return response()->json([
                     'success' => false,
-                    'message' => $e->getMessage(),
-                ], 422);
+                    'message' => 'Unable to fetch exchange rate',
+                ], 400);
             }
+
+            $amount              = (float) $validated['amount'];
+            $senderCountryId     = $this->transferService->getSenderCountryId($userId);
+            $destinationCountryId = $validated['destination_country_id'] ?? $beneficiary->country_id;
+
+            // 1) Fee (in sender currency)
+            $fee = (float) $this->transferService->calculateFee(
+                $amount,
+                $senderCountryId,
+                $destinationCountryId
+            );
+
+            // 2) Promotion (applied on FEE, not on whole amount)
+            $promotion      = null;
+            $discountAmount = 0.0;
+
+            if (!empty($validated['promo_code'])) {
+                try {
+                    // validate against FEE, not amount
+                    [$promotion, $discountAmount] = $this->promotionService->validateAndCalculate(
+                        $validated['promo_code'],
+                        $fee,
+                        $destinationCountryId
+                    );
+
+                    // never discount more than fee
+                    $discountAmount = min($discountAmount, $fee);
+                } catch (\Exception $e) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => $e->getMessage(),
+                    ], 422);
+                }
+            }
+
+            $fee           = round($fee, 2);
+            $discountAmount = round($discountAmount, 2);
+
+            $totalAmount     = max(0, $amount + $fee - $discountAmount);
+            $recipientAmount = $amount * $exchangeRate;
+
+            $speed           = $validated['speed'] ?? 'standard';
+            $deliveryMinutes = $speed === 'express' ? 60 : 1440;
+            $estimatedDeliveryAt = now()->addMinutes($deliveryMinutes);
+
+            return response()->json([
+                'success' => true,
+                'data'    => [
+                    'beneficiary' => [
+                        'id'        => $beneficiary->id,
+                        'full_name' => $beneficiary->full_name,
+                        'country'   => $beneficiary->country,
+                        'method'    => $beneficiary->method,
+                    ],
+                    'amount' => [
+                        'send'          => $amount,
+                        'currency_from' => $validated['currency_from'],
+                        'receive'       => round($recipientAmount, 2),
+                        'currency_to'   => $validated['currency_to'],
+                    ],
+                    'receiver_amount' => [
+                        'amount'   => round($recipientAmount, 2),
+                        'currency' => $validated['currency_to'],
+                    ],
+                    'exchange_rate'           => $exchangeRate,
+                    'fee'                     => $fee,
+                    'discount_amount'         => $discountAmount,
+                    'total_amount'            => round($totalAmount, 2),
+                    'speed'                   => $speed,
+                    'estimated_delivery_time' => $estimatedDeliveryAt->toIso8601String(),
+                    'promotion'               => $promotion,
+                    'breakdown'               => [
+                        'transfer_amount'    => $amount,
+                        'fee'                => $fee,
+                        'discount_amount'    => $discountAmount,
+                        'total_to_pay'       => round($totalAmount, 2),
+                        'recipient_receives' => round($recipientAmount, 2),
+                    ],
+                ],
+            ]);
         }
 
-        $fee           = round($fee, 2);
-        $discountAmount = round($discountAmount, 2);
-
-        $totalAmount     = max(0, $amount + $fee - $discountAmount);
-        $recipientAmount = $amount * $exchangeRate;
-
-        $speed           = $validated['speed'] ?? 'standard';
-        $deliveryMinutes = $speed === 'express' ? 60 : 1440;
-        $estimatedDeliveryAt = now()->addMinutes($deliveryMinutes);
-
-        return response()->json([
-            'success' => true,
-            'data'    => [
-                'beneficiary' => [
-                    'id'        => $beneficiary->id,
-                    'full_name' => $beneficiary->full_name,
-                    'country'   => $beneficiary->country,
-                    'method'    => $beneficiary->method,
-                ],
-                'amount' => [
-                    'send'          => $amount,
-                    'currency_from' => $validated['currency_from'],
-                    'receive'       => round($recipientAmount, 2),
-                    'currency_to'   => $validated['currency_to'],
-                ],
-                'receiver_amount' => [
-                    'amount'   => round($recipientAmount, 2),
-                    'currency' => $validated['currency_to'],
-                ],
-                'exchange_rate'           => $exchangeRate,
-                'fee'                     => $fee,
-                'discount_amount'         => $discountAmount,
-                'total_amount'            => round($totalAmount, 2),
-                'speed'                   => $speed,
-                'estimated_delivery_time' => $estimatedDeliveryAt->toIso8601String(),
-                'promotion'               => $promotion,
-                'breakdown'               => [
-                    'transfer_amount'    => $amount,
-                    'fee'                => $fee,
-                    'discount_amount'    => $discountAmount,
-                    'total_to_pay'       => round($totalAmount, 2),
-                    'recipient_receives' => round($recipientAmount, 2),
-                ],
-            ],
-        ]);
+        // For web requests, redirect to create form
+        return redirect()->route('app.transfers.create');
     }
 
     /*
@@ -186,7 +192,7 @@ class TransferController extends Controller
         "destination_country_id": 2   // optional, defaults to beneficiary country
       }
     */
-    public function store(Request $request): JsonResponse
+    public function store(Request $request)
     {
         $data = $request->validate([
             'beneficiary_id'         => ['required', 'integer', 'exists:beneficiaries,id'],
@@ -213,10 +219,7 @@ class TransferController extends Controller
         );
 
         if ($exchangeRate === null) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Unable to fetch exchange rate',
-            ], 400);
+            return back()->withErrors(['amount' => 'Unable to fetch exchange rate. Please try again.'])->withInput();
         }
 
         // 2) Fee
@@ -248,10 +251,7 @@ class TransferController extends Controller
                 // Increase usage only when we actually create a transfer
                 $promotion->increment('used_count');
             } catch (\Exception $e) {
-                return response()->json([
-                    'success' => false,
-                    'message' => $e->getMessage(),
-                ], 422);
+                return back()->withErrors(['promo_code' => $e->getMessage()])->withInput();
             }
         }
 
@@ -267,49 +267,43 @@ class TransferController extends Controller
         $deliveryMinutes     = $speed === 'express' ? 60 : 1440;
         $estimatedDeliveryAt = now()->addMinutes($deliveryMinutes);
 
-        // 6) Create transfer via domain service
-        $transfer = $this->transferService->createTransfer([
-            'sender_id'             => $userId,
-            'beneficiary_id'        => $beneficiary->id,
-            'amount'                => $amount,
-            'currency_from'         => $data['currency_from'],
-            'currency_to'           => $data['currency_to'],
-            'exchange_rate'         => $exchangeRate,
-            'fee'                   => $fee,
-            'total_amount'          => round($totalAmount, 2),
-            'promotion_id'          => $promotionId,
-            'discount_amount'       => $discountAmount,
-            'speed'                 => $speed,
-            'estimated_delivery_at' => $estimatedDeliveryAt,
-        ]);
+        try {
+            // 6) Create transfer via domain service
+            $transfer = $this->transferService->createTransfer([
+                'sender_id'             => $userId,
+                'beneficiary_id'        => $beneficiary->id,
+                'amount'                => $amount,
+                'currency_from'         => $data['currency_from'],
+                'currency_to'           => $data['currency_to'],
+                'exchange_rate'         => $exchangeRate,
+                'fee'                   => $fee,
+                'total_amount'          => round($totalAmount, 2),
+                'promotion_id'          => $promotionId,
+                'discount_amount'       => $discountAmount,
+                'speed'                 => $speed,
+                'estimated_delivery_at' => $estimatedDeliveryAt,
+            ]);
 
-        AuditLogController::logSystemAction(
-            $userId,
-            'create_transfer',
-            'transfers',
-            $transfer->id,
-            [
-                'amount'        => $amount,
-                'currency_from' => $data['currency_from'],
-                'currency_to'   => $data['currency_to'],
-            ]
-        );
+            AuditLogController::logSystemAction(
+                $userId,
+                'create_transfer',
+                'transfers',
+                $transfer->id,
+                [
+                    'amount'        => $amount,
+                    'currency_from' => $data['currency_from'],
+                    'currency_to'   => $data['currency_to'],
+                ]
+            );
 
-        $transfer->load(['beneficiary.country', 'beneficiary.method', 'events']);
+            // Redirect to transfer details page
+            return redirect()->route('transfers.show', $transfer->id)
+                ->with('success', 'Transfer created successfully! Reference: ' . $transfer->reference);
 
-        $receiverAmount = round($transfer->amount * $transfer->exchange_rate, 2);
-
-        $payload                    = $transfer->toArray();
-        $payload['receiver_amount'] = [
-            'amount'   => $receiverAmount,
-            'currency' => $transfer->currency_to,
-        ];
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Transfer initiated successfully',
-            'data'    => $payload,
-        ], 201);
+        } catch (\Exception $e) {
+            // For web requests, always redirect back with error
+            return back()->withErrors(['amount' => $e->getMessage()])->withInput();
+        }
     }
 
     public function show(int $id): JsonResponse
