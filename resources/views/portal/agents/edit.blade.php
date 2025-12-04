@@ -15,7 +15,7 @@
                     </div>
                 @endif
 
-                <form method="POST" action="{{ route('portal.agents.update', $agent) }}">
+                <form method="POST" action="{{ route('portal.agents.update') }}">
                     @csrf
                     @method('PUT')
 

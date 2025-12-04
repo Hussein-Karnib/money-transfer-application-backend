@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\User;
-use App\Models\User_Verification;
+use App\Models\UserVerification;
 use App\Models\Agent;
 use App\Models\Transfer;
 
@@ -14,7 +14,7 @@ class StatisticController extends Controller
     {
         $data = [
             'users_count' => User::count(),
-            'verified_users_count' => User_Verification::where('status', 'approved')->count(),
+            'verified_users_count' => UserVerification::where('status', 'approved')->count(),
             'agents_count' => Agent::count(),
             'pending_agents_count' => Agent::where('status', 'pending')->count(),
             'transfers_count' => Transfer::count(),
@@ -31,7 +31,7 @@ class StatisticController extends Controller
 
         $data = [
             'users_count' => User::where('created_at', '>=', $fromDate)->where('created_at', '<=', $toDate)->count(),
-            'verified_users_count' => User_Verification::where('status', 'approved')->where('created_at', '>=', $fromDate)->where('created_at', '<=', $toDate)->count(),
+            'verified_users_count' => UserVerification::where('status', 'approved')->where('created_at', '>=', $fromDate)->where('created_at', '<=', $toDate)->count(),
             'agents_count' => Agent::where('created_at', '>=', $fromDate)->where('created_at', '<=', $toDate)->count(),
             'pending_agents_count' => Agent::where('status', 'pending')->where('created_at', '>=', $fromDate)->where('created_at', '<=', $toDate)->count(),
             'transfers_count' => Transfer::where('created_at', '>=', $fromDate)->where('created_at', '<=', $toDate)->count(),

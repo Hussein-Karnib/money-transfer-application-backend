@@ -17,6 +17,7 @@ use App\Http\Controllers\UserBankAccountController;
 use App\Http\Controllers\UserVerificationController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\AgentTransactionController;
 
 Route::get('/auth/{provider}/callback', [SocialAuthController::class, 'callback'])
     ->name('social.callback');
@@ -128,19 +129,31 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->grou
 
 Route::middleware(['auth', 'role:agent'])->prefix('portal')->name('portal.')->group(function () {
     
+    // Helper to get current agent
+    $getAgent = function() {
+        $user = Auth::user();
+        $agent = App\Models\Agent::where('user_id', $user->id)->firstOrFail();
+        return $agent;
+    };
+    
     // --- My Store Details ---
     // Agent edit store details view
-    Route::get('/my-store/{agent}/edit', function (App\Models\Agent $agent) {
+    Route::get('/my-store/edit', function () use ($getAgent) {
+        $agent = $getAgent();
         $agent->load('user');
         return view('portal.agents.edit', compact('agent'));
     })->name('agents.edit');
     
     // Agent update store details
-    Route::put('/my-store/{agent}', [AgentController::class, 'update'])->name('agents.update');
+    Route::put('/my-store', function (Request $request) use ($getAgent) {
+        $agent = $getAgent();
+        return app(AgentController::class)->update($request, $agent);
+    })->name('agents.update');
 
     // --- Working Hours ---
     // Agent hours index view
-    Route::get('/my-store/{agent}/hours', function (App\Models\Agent $agent) {
+    Route::get('/my-store/hours', function () use ($getAgent) {
+        $agent = $getAgent();
         $hours = $agent->hours()->orderBy('day_of_week')->get();
         $days = [
             0 => 'Sunday', 1 => 'Monday', 2 => 'Tuesday', 
@@ -150,7 +163,8 @@ Route::middleware(['auth', 'role:agent'])->prefix('portal')->name('portal.')->gr
     })->name('hours.index');
     
     // Agent hours edit view
-    Route::get('/my-store/{agent}/hours/edit', function (App\Models\Agent $agent) {
+    Route::get('/my-store/hours/edit', function () use ($getAgent) {
+        $agent = $getAgent();
         $hours = $agent->hours->keyBy('day_of_week');
         $days = [
             0 => 'Sunday', 1 => 'Monday', 2 => 'Tuesday', 
@@ -160,15 +174,71 @@ Route::middleware(['auth', 'role:agent'])->prefix('portal')->name('portal.')->gr
     })->name('hours.edit');
     
     // Agent hours update
-    Route::put('/my-store/{agent}/hours', [AgentHourController::class, 'update'])->name('hours.update');
+    Route::put('/my-store/hours', function (Request $request) use ($getAgent) {
+        $agent = $getAgent();
+        return app(AgentHourController::class)->update($request, $agent);
+    })->name('hours.update');
 
+    // --- Agent Dashboard ---
+    Route::get('/dashboard', function (Request $request) {
+        $user = Auth::user();
+        $agent = App\Models\Agent::where('user_id', $user->id)->firstOrFail();
+        
+        // Get pending transfers for cash-in (queued, paid)
+        $pendingCashIn = App\Models\Transfer::whereIn('status', ['queued', 'paid'])
+            ->with(['beneficiary.country', 'beneficiary.method', 'sender'])
+            ->orderBy('initiated_at', 'desc')
+            ->limit(10)
+            ->get();
+        
+        // Get pending transfers for cash-out (available_for_pickup)
+        $pendingCashOut = App\Models\Transfer::where('status', 'available_for_pickup')
+            ->with(['beneficiary.country', 'beneficiary.method', 'sender'])
+            ->orderBy('initiated_at', 'desc')
+            ->limit(10)
+            ->get();
+        
+        // Get recent transactions
+        $recentTransactions = $agent->transactions()
+            ->with('transfer')
+            ->latest('processed_at')
+            ->limit(5)
+            ->get();
+        
+        // Get notifications
+        $notifications = $user->notifications()
+            ->latest()
+            ->limit(10)
+            ->get();
+        $unreadCount = $user->unreadNotifications()->count();
+        
+        // Stats
+        $todayCommission = $agent->transactions()
+            ->whereDate('processed_at', today())
+            ->sum('commission');
+        $monthlyCommission = $agent->transactions()
+            ->whereYear('processed_at', now()->year)
+            ->whereMonth('processed_at', now()->month)
+            ->sum('commission');
+        $totalTransactions = $agent->transactions()->count();
+        
+        return view('portal.dashboard', compact(
+            'agent',
+            'pendingCashIn',
+            'pendingCashOut',
+            'recentTransactions',
+            'notifications',
+            'unreadCount',
+            'todayCommission',
+            'monthlyCommission',
+            'totalTransactions'
+        ));
+    })->name('dashboard');
+    
     // --- Commissions ---
     // Agent commissions view
-    Route::get('/my-store/{agent}/commissions', function (App\Models\Agent $agent, Request $request) {
-        // Security: Ensure the logged-in user owns this agent profile
-        if (Auth::id() !== $agent->user_id) {
-            abort(403, 'Unauthorized access to commission records.');
-        }
+    Route::get('/my-store/commissions', function (Request $request) use ($getAgent) {
+        $agent = $getAgent();
 
         $query = $agent->transactions();
 
@@ -206,6 +276,50 @@ Route::middleware(['auth', 'role:agent'])->prefix('portal')->name('portal.')->gr
             'filteredCommission'
         ));
     })->name('commissions');
+    
+    // --- Transfer Requests ---
+    // View pending transfers for processing
+    Route::get('/transfers/pending', function (Request $request) use ($getAgent) {
+        $agent = $getAgent();
+        
+        $type = $request->get('type', 'cash_in'); // cash_in or cash_out
+        
+        if ($type === 'cash_in') {
+            $transfers = App\Models\Transfer::whereIn('status', ['queued', 'paid'])
+                ->with(['beneficiary.country', 'beneficiary.method', 'sender'])
+                ->orderBy('initiated_at', 'desc')
+                ->paginate(15);
+        } else {
+            $transfers = App\Models\Transfer::where('status', 'available_for_pickup')
+                ->with(['beneficiary.country', 'beneficiary.method', 'sender'])
+                ->orderBy('initiated_at', 'desc')
+                ->paginate(15);
+        }
+        
+        return view('portal.transfers.pending', compact('agent', 'transfers', 'type'));
+    })->name('transfers.pending');
+    
+    // Process transfer (cash-in or cash-out)
+    Route::get('/transfers/process', function (Request $request) use ($getAgent) {
+        $agent = $getAgent();
+        return app(AgentTransactionController::class)->create($agent, $request);
+    })->name('transfers.process');
+    
+    Route::post('/transfers/process', function (Request $request) use ($getAgent) {
+        $agent = $getAgent();
+        return app(AgentTransactionController::class)->store($request, $agent);
+    })->name('transfers.process.store');
+    
+    // Transaction history
+    Route::get('/transactions', function () use ($getAgent) {
+        $agent = $getAgent();
+        return app(AgentTransactionController::class)->index($agent);
+    })->name('transactions.index');
+    
+    Route::get('/transactions/{transaction}', function (App\Models\Agent_Transaction $transaction) use ($getAgent) {
+        $agent = $getAgent();
+        return app(AgentTransactionController::class)->show($agent, $transaction);
+    })->name('transactions.show');
 });
 
 
@@ -214,10 +328,24 @@ Route::middleware(['auth', 'role:agent'])->prefix('portal')->name('portal.')->gr
 // ========================================================================
 
 Route::middleware(['auth'])->group(function () {
-    // Dashboard - Load data from database
+    // Dashboard - Load data from database (redirect based on role)
     Route::get('/dashboard', function (Request $request) {
         $user = Auth::user();
         
+        // Redirect admins to admin dashboard
+        if ($user->role && strtolower($user->role->name) === 'admin') {
+            return redirect()->route('admin.dashboard');
+        }
+        
+        // Redirect agents to portal dashboard
+        if ($user->role && strtolower($user->role->name) === 'agent') {
+            $agent = App\Models\Agent::where('user_id', $user->id)->first();
+            if ($agent) {
+                return redirect()->route('portal.dashboard');
+            }
+        }
+        
+        // Regular user dashboard
         // Get transfers from database
         $transfers = App\Models\Transfer::where('sender_id', $user->id)
             ->with(['beneficiary.country', 'beneficiary.method', 'events', 'payment'])
@@ -255,12 +383,13 @@ Route::middleware(['auth'])->group(function () {
         
         // Create transfer view
         Route::get('/transfers/create', function () {
-            // Load beneficiaries and currencies for the form
+            // Load beneficiaries and currencies for the form from database
             $user = Auth::user();
             $beneficiaries = App\Models\Beneficiary::where('user_id', $user->id)
                 ->with(['country', 'method'])
+                ->orderBy('full_name')
                 ->get();
-            $currencies = App\Models\Currency::all();
+            $currencies = App\Models\Currency::orderBy('code')->get();
             
             return view('transfers.create', compact('beneficiaries', 'currencies'));
         })->name('transfers.create');
@@ -287,15 +416,6 @@ Route::middleware(['auth'])->group(function () {
             
             return view('bank_accounts.index', compact('bankAccounts'));
         })->name('bank-accounts.index');
-        
-        // --- KYC ---
-        // KYC view - Load from database
-        Route::get('/kyc', function () {
-            $user = Auth::user();
-            $verification = App\Models\UserVerification::where('user_id', $user->id)->first();
-            
-            return view('kyc.show', compact('verification'));
-        })->name('kyc.show');
         
         // --- Notifications ---
         // Notifications list view - Load from database

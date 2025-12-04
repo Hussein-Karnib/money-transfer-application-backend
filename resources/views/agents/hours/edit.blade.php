@@ -18,7 +18,7 @@
                     </div>
                 @endif
 
-                <form method="POST" action="{{ route('portal.hours.update', $agent) }}">
+                <form method="POST" action="{{ route('portal.hours.update') }}">
                     @csrf
                     @method('PUT')
 
@@ -86,7 +86,7 @@
                     </div>
 
                     <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
-                        <a href="{{ route('portal.hours.index', $agent) }}" class="btn btn-outline-secondary">
+                        <a href="{{ route('portal.hours.index') }}" class="btn btn-outline-secondary">
                             Cancel
                         </a>
                         <button type="submit" class="btn btn-primary">
