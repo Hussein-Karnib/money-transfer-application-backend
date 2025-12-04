@@ -32,6 +32,9 @@ Route::post('/partner/register', [AgentController::class, 'store'])->name('agent
 // --- Authentication (Laravel Breeze/Jetstream) ---
 // require __DIR__.'/auth.php'; 
 
+Route::get('/login', function () {
+    return view('login'); // or redirect to your frontend login page
+})->name('login');
 
 // ========================================================================
 // 2. ADMIN ROUTES (Protected)

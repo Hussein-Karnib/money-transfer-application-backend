@@ -91,7 +91,7 @@ class AgentController extends Controller
             );
         });
 
-        return redirect()->route('login')->with('success', 'Registration successful! Your account is pending admin approval.');
+        return redirect()->route('home')->with('success', 'Registration successful! Your account is pending admin approval.');
     }
 
     /**
