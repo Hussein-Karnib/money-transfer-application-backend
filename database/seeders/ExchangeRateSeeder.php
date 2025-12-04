@@ -1,5 +1,6 @@
 <?php
 
+/*
 namespace Database\Seeders;
 
 use App\Models\Exchange_Rate;
@@ -33,3 +34,4 @@ class ExchangeRateSeeder extends Seeder
         }
     }
 }
+*/
