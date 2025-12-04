@@ -109,6 +109,7 @@
             <li><a href="#">Reports</a></li>
             <li><a href="{{ route('admin.auditTable') }}">Audit Logs</a></li>
             <li><a href="{{ route('admin.statistics') }}">Statistics</a></li>
+            <li><a href="{{ route('admin.approvals') }}">Approvals</a></li>
             <li>
                 <form method="POST" action="#" id="logout-form">
                     @csrf
