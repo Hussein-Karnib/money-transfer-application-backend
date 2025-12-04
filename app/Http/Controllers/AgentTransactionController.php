@@ -43,24 +43,34 @@ class AgentTransactionController extends Controller
      */
     public function store(Request $request, Agent $agent)
     {
+        // Security: Ensure the logged-in user owns this agent profile
+        if (Auth::id() !== $agent->user_id) {
+            abort(403, 'Unauthorized access to store records.');
+        }
+
         $validated = $request->validate([
-            'transfer_reference' => 'required|string|exists:transfers,reference_code', // Assume Transfer has a unique code
+            'transfer_reference' => 'required|string|exists:transfers,reference',
             'type' => 'required|in:cash_in,cash_out',
         ]);
 
         // Find the transfer
-        $transfer = Transfer::where('reference_code', $validated['transfer_reference'])->firstOrFail();
+        $transfer = Transfer::where('reference', $validated['transfer_reference'])->firstOrFail();
 
         // LOGIC CHECKS
         if ($validated['type'] === 'cash_out') {
-            // Rule: Can only cash out if status is 'ready_for_pickup'
-            if ($transfer->status !== 'ready_for_pickup') {
+            // Rule: Can only cash out if status is 'available_for_pickup'
+            if ($transfer->status !== 'available_for_pickup') {
                 return back()->withErrors(['transfer_reference' => 'This transfer is not ready for pickup yet.']);
+            }
+        } elseif ($validated['type'] === 'cash_in') {
+            // Rule: Can only cash in if status is 'queued' or 'paid'
+            if (!in_array($transfer->status, ['queued', 'paid'])) {
+                return back()->withErrors(['transfer_reference' => 'This transfer cannot be processed for cash-in.']);
             }
         }
 
-        // Calculate Commission (Example: 1% of amount)
-        $commissionRate = 0.01; 
+        // Calculate Commission (can be made configurable per agent or system-wide)
+        $commissionRate = $agent->commission_rate ?? 0.01; // Default 1%, can be overridden per agent
         $commission = $transfer->amount * $commissionRate;
 
         DB::transaction(function () use ($agent, $transfer, $validated, $commission) {
@@ -79,14 +89,14 @@ class AgentTransactionController extends Controller
             if ($validated['type'] === 'cash_out') {
                 $transfer->update(['status' => 'completed']);
             } elseif ($validated['type'] === 'cash_in') {
-                $transfer->update(['status' => 'processing']); // Or 'ready_for_pickup' depending on logic
+                $transfer->update(['status' => 'in_progress']);
             }
             
             // Optional: Create an Audit Log here (via helper/observer)
         });
 
         return redirect()->route('portal.transactions.index', $agent)
-            ->with('success', 'Transaction processed successfully. Commission earned: ' . $commission);
+            ->with('success', 'Transaction processed successfully. Commission earned: ' . number_format($commission, 2));
     }
 
     /**

@@ -8,7 +8,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('currencies', function (Blueprint $table) {
-            $table->string('code', 3)->primary(); // USD, EUR...
+            $table->string('code', 3)->primary(); 
             $table->string('name');
             $table->unsignedTinyInteger('decimals')->default(2);
             $table->timestamps();

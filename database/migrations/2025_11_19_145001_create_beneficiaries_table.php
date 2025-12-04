@@ -13,7 +13,7 @@ return new class extends Migration
             $table->string('full_name');
             $table->foreignId('country_id')->constrained('countries');
             $table->foreignId('transfer_method_id')->constrained('transfer_methods');
-            $table->json('payout_details')->nullable(); // IBAN, wallet number, etc.
+            $table->json('payout_details')->nullable(); 
             $table->timestamps();
         });
     }

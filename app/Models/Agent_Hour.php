@@ -6,11 +6,26 @@ use Illuminate\Database\Eloquent\Model;
 
 class Agent_Hour extends Model
 {
+    protected $table = 'agent_hours';
+    
     public $timestamps = false;
     protected $primaryKey = null;
     public $incrementing = false;
 
-    protected $fillable = ['agent_id','day_of_week','open_time','close_time'];
+    protected $fillable = [
+        'agent_id',
+        'day_of_week',
+        'open_time',
+        'close_time',
+        'is_closed',
+    ];
+
+    protected $casts = [
+        'day_of_week' => 'integer',
+        'open_time' => 'string',
+        'close_time' => 'string',
+        'is_closed' => 'boolean',
+    ];
 
     public function agent()
     {
