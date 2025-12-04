@@ -13,6 +13,11 @@
                 <label for="beneficiary_id" class="form-label">Beneficiary</label>
                 <select id="beneficiary_id" class="form-select" required>
                     <option value="">Select beneficiary...</option>
+                    @foreach($beneficiaries as $beneficiary)
+                        <option value="{{ $beneficiary->id }}">
+                            {{ $beneficiary->full_name }} ({{ $beneficiary->country->name ?? 'N/A' }})
+                        </option>
+                    @endforeach
                 </select>
             </div>
 
@@ -79,21 +84,6 @@
 @section('scripts')
 <script>
     let lastPreviewPayload = null;
-
-    async function loadBeneficiaries() {
-        const res = await fetch("{{ route('beneficiaries.index') }}");
-        if (!res.ok) return;
-        const data = await res.json();
-        if (!data.success) return;
-
-        const select = document.getElementById('beneficiary_id');
-        data.data.forEach(b => {
-            const opt = document.createElement('option');
-            opt.value = b.id;
-            opt.textContent = `${b.full_name} (${b.country?.name ?? ''})`;
-            select.appendChild(opt);
-        });
-    }
 
     async function previewTransfer() {
         const beneficiary_id = document.getElementById('beneficiary_id').value;
@@ -192,7 +182,5 @@
 
     document.getElementById('btn-preview').addEventListener('click', previewTransfer);
     document.getElementById('btn-confirm').addEventListener('click', confirmTransfer);
-
-    loadBeneficiaries();
 </script>
 @endsection

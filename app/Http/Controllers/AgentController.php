@@ -28,12 +28,28 @@ class AgentController extends Controller
         }
 
         // Return JSON for the Map if requested via API
-        if ($request->wantsJson()) {
-            return response()->json($query->get());
+        if ($request->wantsJson() || $request->is('api/*')) {
+            return response()->json([
+                'success' => true,
+                'data' => $query->get(),
+            ]);
         }
 
+        // Check if this is an admin route
+        if ($request->is('admin/*')) {
+            $agents = $query->paginate(10);
+            return response()->json([
+                'success' => true,
+                'data' => $agents,
+            ]);
+        }
+
+        // For public agent map page, return JSON
         $agents = $query->paginate(10);
-        return view('agents.index', compact('agents'));
+        return response()->json([
+            'success' => true,
+            'data' => $agents,
+        ]);
     }
 
     /**
@@ -41,7 +57,7 @@ class AgentController extends Controller
      */
     public function create()
     {
-        return view('agents.register');
+        return view('agents.create');
     }
 
     /**
@@ -63,16 +79,31 @@ class AgentController extends Controller
             'longitude' => ['nullable', 'numeric', 'between:-180,180'],
         ]);
 
-        DB::transaction(function () use ($validated) {
-            // 1. Create the User Account
+        DB::transaction(function () use ($validated, &$user) {
+            // 1. Get Agent role (try multiple name variations and id 2)
+            $agentRole = \App\Models\Role::whereIn('name', ['agent', 'Agent', 'AGENT'])->first();
+            if (!$agentRole) {
+                $agentRole = \App\Models\Role::find(2); // Fallback to role id 2
+            }
+            if (!$agentRole) {
+                // Last resort: get any role that might be an agent
+                $agentRole = \App\Models\Role::where('name', 'like', '%agent%')
+                    ->orWhere('name', 'like', '%Agent%')
+                    ->first();
+            }
+            if (!$agentRole) {
+                throw new \Exception('Agent role not found in database. Please run: php artisan db:seed --class=DatabaseSeeder');
+            }
+
+            // 2. Create the User Account with Agent role
             $user = User::create([
                 'name' => $validated['name'],
                 'email' => $validated['email'],
                 'password' => Hash::make($validated['password']),
-                // 'role_id' => 2 // Assuming 2 is for Agents
+                'role_id' => $agentRole->id,
             ]);
 
-            // 2. Create the Agent Profile (Status defaults to 'pending')
+            // 3. Create the Agent Profile (Status defaults to 'pending')
             $agent = Agent::create([
                 'user_id' => $user->id,
                 'store_name' => $validated['store_name'],
@@ -100,6 +131,16 @@ class AgentController extends Controller
     public function show(Agent $agent)
     {
         $agent->load(['user', 'hours']); // Load working hours if available
+        
+        // Return JSON if requested via API
+        if (request()->wantsJson() || request()->is('api/*')) {
+            return response()->json([
+                'success' => true,
+                'data' => $agent,
+            ]);
+        }
+        
+        // Return view for web requests
         return view('agents.show', compact('agent'));
     }
 
@@ -108,10 +149,8 @@ class AgentController extends Controller
      */
     public function edit(Agent $agent)
     {
-        // Ensure only the agent themselves or an Admin can edit
-        // $this->authorize('update', $agent); 
-        
-        return view('agents.edit', compact('agent'));
+        $agent->load('user');
+        return view('portal.agents.edit', compact('agent'));
     }
 
     /**
@@ -136,7 +175,7 @@ class AgentController extends Controller
             ['changes' => $validated]
         );
 
-        return redirect()->route('agents.show', $agent)->with('success', 'Store details updated.');
+        return redirect()->route('portal.agents.edit', $agent)->with('success', 'Store details updated.');
     }
 
     /**

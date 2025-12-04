@@ -10,7 +10,7 @@
                 <div class="card shadow-sm">
                     <div class="card-body">
                         <h6 class="card-title text-muted">Last Transfer Status</h6>
-                        <p class="h5" id="last-transfer-status">Loading...</p>
+                        <p class="h5">{{ $lastTransferStatus }}</p>
                     </div>
                 </div>
             </div>
@@ -19,7 +19,7 @@
                 <div class="card shadow-sm">
                     <div class="card-body">
                         <h6 class="card-title text-muted">Total Transfers</h6>
-                        <p class="h5" id="total-transfers">0</p>
+                        <p class="h5">{{ $totalTransfers }}</p>
                     </div>
                 </div>
             </div>
@@ -28,14 +28,14 @@
                 <div class="card shadow-sm">
                     <div class="card-body">
                         <h6 class="card-title text-muted">Unread Notifications</h6>
-                        <p class="h5" id="dashboard-unread-count">0</p>
+                        <p class="h5">{{ $unreadCount }}</p>
                     </div>
                 </div>
             </div>
         </div>
 
         <h4>Recent Transfers</h4>
-        <table class="table table-striped" id="recent-transfers-table">
+        <table class="table table-striped">
             <thead>
             <tr>
                 <th>#</th>
@@ -47,7 +47,24 @@
             </tr>
             </thead>
             <tbody>
-            {{-- Filled by JS --}}
+            @forelse($transfers as $transfer)
+                <tr>
+                    <td>{{ $transfer->id }}</td>
+                    <td>{{ $transfer->beneficiary->full_name ?? '-' }}</td>
+                    <td>{{ number_format($transfer->amount, 2) }} {{ $transfer->currency_from }}</td>
+                    <td>{{ $transfer->currency_from }} → {{ $transfer->currency_to }}</td>
+                    <td>
+                        <span class="badge bg-{{ $transfer->status === 'completed' ? 'success' : ($transfer->status === 'pending' ? 'warning' : 'danger') }}">
+                            {{ ucfirst($transfer->status) }}
+                        </span>
+                    </td>
+                    <td>{{ $transfer->initiated_at ? \Carbon\Carbon::parse($transfer->initiated_at)->format('M d, Y H:i') : '-' }}</td>
+                </tr>
+            @empty
+                <tr>
+                    <td colspan="6" class="text-center text-muted">No transfers yet</td>
+                </tr>
+            @endforelse
             </tbody>
         </table>
     </div>
@@ -70,60 +87,4 @@
         </div>
     </div>
 </div>
-@endsection
-
-@section('scripts')
-<script>
-    (async function loadDashboard() {
-        try {
-            // Get transfers (existing JSON endpoint)
-            const res = await fetch("{{ route('transfers.index') }}");
-            if (!res.ok) return;
-            const data = await res.json();
-            if (!data.success) return;
-
-            const page = data.data;
-            const transfers = page.data ?? page;
-
-            const tbody = document.querySelector('#recent-transfers-table tbody');
-            tbody.innerHTML = '';
-
-            let lastStatus = 'N/A';
-
-            transfers.slice(0, 5).forEach((t, i) => {
-                const tr = document.createElement('tr');
-
-                tr.innerHTML = `
-                    <td>${t.id}</td>
-                    <td>${t.beneficiary?.full_name ?? '-'}</td>
-                    <td>${t.amount} ${t.currency_from}</td>
-                    <td>${t.currency_from} → ${t.currency_to}</td>
-                    <td>${t.status}</td>
-                    <td>${t.initiated_at ?? ''}</td>
-                `;
-                tbody.appendChild(tr);
-
-                if (i === 0) lastStatus = t.status;
-            });
-
-            document.getElementById('last-transfer-status').textContent = lastStatus;
-            document.getElementById('total-transfers').textContent = page.total ?? transfers.length;
-        } catch (e) {
-            console.error(e);
-        }
-
-        // Unread notifications count
-        try {
-            const res2 = await fetch("{{ route('notifications.unread') }}");
-            if (!res2.ok) return;
-            const data2 = await res2.json();
-            if (data2.success) {
-                const count = data2.data.length || 0;
-                document.getElementById('dashboard-unread-count').textContent = count;
-            }
-        } catch (e) {
-            console.error(e);
-        }
-    })();
-</script>
 @endsection

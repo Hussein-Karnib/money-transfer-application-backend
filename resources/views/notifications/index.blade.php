@@ -1,85 +1,53 @@
 @extends('layouts.app')
 
 @section('content')
-<h2>Notifications</h2>
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>Notifications</h2>
+    @if($unreadCount > 0)
+        <form method="POST" action="{{ route('notifications.markAllRead') }}" class="d-inline">
+            @csrf
+            <button type="submit" class="btn btn-sm btn-outline-primary">Mark all as read</button>
+        </form>
+    @endif
+</div>
 
-<button class="btn btn-sm btn-outline-primary mb-3" id="btn-mark-all">
-    Mark all as read
-</button>
-
-<ul class="list-group" id="notifications-list">
-    {{-- JS --}}
-</ul>
-@endsection
-
-@section('scripts')
-<script>
-    async function loadNotifications() {
-        const res = await fetch("{{ route('notifications.index') }}");
-        if (!res.ok) return;
-        const data = await res.json();
-        if (!data.success) return;
-
-        const list = document.getElementById('notifications-list');
-        list.innerHTML = '';
-
-        data.data.forEach(n => {
-            const li = document.createElement('li');
-            const read = n.read_at !== null;
-
-            li.className = 'list-group-item d-flex justify-content-between align-items-center ' +
-                (read ? '' : 'list-group-item-info');
-
-            const payload = n.data || {};
-            const text = payload.message || payload.status || 'Transfer update';
-
-            li.innerHTML = `
+@if($notifications->count() > 0)
+    <ul class="list-group">
+        @foreach($notifications as $notification)
+            @php
+                $data = is_string($notification->data) ? json_decode($notification->data, true) : $notification->data;
+                $isRead = $notification->read_at !== null;
+            @endphp
+            <li class="list-group-item d-flex justify-content-between align-items-center {{ $isRead ? '' : 'list-group-item-info' }}">
                 <div>
-                    <strong>${text}</strong><br>
-                    <small>Transfer #${payload.transfer_id ?? ''}</small>
+                    <strong>{{ $data['message'] ?? ($data['new_status'] ?? 'Transfer update') }}</strong><br>
+                    @if(isset($data['transfer_id']))
+                        <small>Transfer #{{ $data['transfer_id'] }}</small>
+                    @endif
+                    <br>
+                    <small class="text-muted">{{ $notification->created_at->format('M d, Y H:i') }}</small>
                 </div>
                 <div>
-                    ${read ? '' : `
-                        <button class="btn btn-sm btn-outline-secondary"
-                            onclick="markAsRead('${n.id}')">Mark as read</button>
-                    `}
+                    @if(!$isRead)
+                        <form method="POST" action="{{ route('notifications.markAsRead', $notification->id) }}" class="d-inline">
+                            @csrf
+                            <button type="submit" class="btn btn-sm btn-outline-secondary">Mark as read</button>
+                        </form>
+                    @else
+                        <span class="badge bg-secondary">Read</span>
+                    @endif
                 </div>
-            `;
-            list.appendChild(li);
-        });
-    }
+            </li>
+        @endforeach
+    </ul>
 
-    async function markAsRead(id) {
-        const res = await fetch(`/notifications/${id}/read`, {
-            method: 'POST',
-            headers: {
-                'X-CSRF-TOKEN': window.csrfToken,
-                'Accept': 'application/json'
-            }
-        });
-
-        const data = await res.json();
-        if (data.success) {
-            loadNotifications();
-        }
-    }
-
-    async function markAllAsRead() {
-        const res = await fetch(`/notifications/read-all`, {
-            method: 'POST',
-            headers: {
-                'X-CSRF-TOKEN': window.csrfToken,
-                'Accept': 'application/json'
-            }
-        });
-
-        const data = await res.json();
-        if (data.success) {
-            loadNotifications();
-        }
-    }
-
-    document.getElementById('btn-mark-all').addEventListener('click', markAllAsRead);
-    loadNotifications();
-</script>
+    <!-- Pagination -->
+    <div class="mt-4">
+        {{ $notifications->links() }}
+    </div>
+@else
+    <div class="alert alert-info">
+        <p class="mb-0">No notifications found.</p>
+    </div>
+@endif
 @endsection

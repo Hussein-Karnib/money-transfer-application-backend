@@ -5,93 +5,75 @@
 
 <div class="row mb-4">
     <div class="col-md-6">
-        <form id="bank-account-form" class="card card-body">
-            @csrf
-            <h5 class="mb-3">Add Bank Account</h5>
-            <div class="mb-3">
-                <label class="form-label">Bank Name</label>
-                <input type="text" id="ba_bank_name" class="form-control" required>
+        <div class="card">
+            <div class="card-body">
+                <h5 class="mb-3">Add Bank Account</h5>
+                <form method="POST" action="{{ route('bank-accounts.store') }}">
+                    @csrf
+                    <div class="mb-3">
+                        <label class="form-label">Bank Name</label>
+                        <input type="text" name="bank_name" class="form-control @error('bank_name') is-invalid @enderror" value="{{ old('bank_name') }}" required>
+                        @error('bank_name')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Currency</label>
+                        <select name="currency_code" class="form-select @error('currency_code') is-invalid @enderror" required>
+                            <option value="">Select Currency</option>
+                            @foreach(App\Models\Currency::all() as $currency)
+                                <option value="{{ $currency->code }}" {{ old('currency_code') == $currency->code ? 'selected' : '' }}>{{ $currency->code }} - {{ $currency->name }}</option>
+                            @endforeach
+                        </select>
+                        @error('currency_code')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+                    <button type="submit" class="btn btn-primary">Add Bank Account</button>
+                </form>
             </div>
-            <div class="mb-3">
-                <label class="form-label">Currency Code</label>
-                <input type="text" id="ba_currency_code" class="form-control" value="USD" required>
-            </div>
-            <button type="button" class="btn btn-primary" id="btn-add-bank-account">
-                Add
-            </button>
-        </form>
+        </div>
     </div>
 </div>
 
-<table class="table" id="bank-accounts-table">
-    <thead>
-    <tr>
-        <th>#</th>
-        <th>Bank Name</th>
-        <th>Account Number</th>
-        <th>Currency</th>
-        <th>Status</th>
-        <th>Actions</th>
-    </tr>
-    </thead>
-    <tbody>
-    {{-- JS --}}
-    </tbody>
-</table>
-@endsection
-
-@section('scripts')
-<script>
-    async function loadBankAccounts() {
-        const res = await fetch("{{ route('bank-accounts.index') }}");
-        if (!res.ok) return;
-        const data = await res.json();
-        if (!data.success) return;
-
-        const tbody = document.querySelector('#bank-accounts-table tbody');
-        tbody.innerHTML = '';
-
-        data.data.forEach(a => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td>${a.id}</td>
-                <td>${a.bank_name}</td>
-                <td>${a.account_number}</td>
-                <td>${a.currency?.code ?? a.currency_code}</td>
-                <td>${a.status}</td>
-                <td></td>
-            `;
-            tbody.appendChild(tr);
-        });
-    }
-
-    async function addBankAccount() {
-        const payload = {
-            bank_name: document.getElementById('ba_bank_name').value,
-            currency_code: document.getElementById('ba_currency_code').value.toUpperCase(),
-        };
-
-        const res = await fetch("{{ route('bank-accounts.store') }}", {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': window.csrfToken,
-                'Accept': 'application/json'
-            },
-            body: JSON.stringify(payload)
-        });
-
-        const data = await res.json();
-        if (!data.success) {
-            alert(data.message || 'Error adding bank account');
-            return;
-        }
-
-        document.getElementById('ba_bank_name').value = '';
-        loadBankAccounts();
-    }
-
-    document.getElementById('btn-add-bank-account').addEventListener('click', addBankAccount);
-    loadBankAccounts();
-</script>
+@if($bankAccounts->count() > 0)
+    <table class="table table-hover">
+        <thead>
+        <tr>
+            <th>#</th>
+            <th>Bank Name</th>
+            <th>Account Number</th>
+            <th>Currency</th>
+            <th>Status</th>
+            <th>Actions</th>
+        </tr>
+        </thead>
+        <tbody>
+        @foreach($bankAccounts as $account)
+            <tr>
+                <td>{{ $account->id }}</td>
+                <td>{{ $account->bank_name }}</td>
+                <td>{{ $account->account_number ?? 'N/A' }}</td>
+                <td>{{ $account->currency_code }}</td>
+                <td>
+                    <span class="badge bg-{{ $account->status === 'verified' ? 'success' : 'warning' }}">
+                        {{ ucfirst($account->status ?? 'pending') }}
+                    </span>
+                </td>
+                <td>
+                    <form method="POST" action="{{ route('bank-accounts.destroy', $account->id) }}" class="d-inline" onsubmit="return confirm('Delete this bank account?');">
+                        @csrf
+                        @method('DELETE')
+                        <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                    </form>
+                </td>
+            </tr>
+        @endforeach
+        </tbody>
+    </table>
+@else
+    <div class="alert alert-info">
+        <p class="mb-0">No bank accounts found. Add your first bank account above.</p>
+    </div>
+@endif
 @endsection

@@ -15,6 +15,11 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
+        // Exclude login route from CSRF verification temporarily
+        $middleware->validateCsrfTokens(except: [
+            'login',
+        ]);
+        
         $middleware->alias([
             'role'         => \App\Http\Middleware\RoleMiddleware::class,
             'kyc_verified' => \App\Http\Middleware\KycVerifiedMiddleware::class,
