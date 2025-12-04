@@ -9,7 +9,8 @@ class PromotionService
    
     public function validateAndCalculate(string $code, float $amount, ?int $destinationCountryId = null): array
     {
-        $promo = Promotion::whereRaw('LOWER(code) = ?', [mb_strtolower($code)])->first();
+        $promo = Promotion::where('code', $code)->first();
+
 
         if (!$promo || !$promo->isValidFor($amount, $destinationCountryId)) {
             throw new \Exception('Invalid or expired promo code');

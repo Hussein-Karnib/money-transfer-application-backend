@@ -33,36 +33,45 @@ class Promotion extends Model
     }
 
    
-    public function isValidFor(float $amount, ?int $countryToId = null): bool
-    {
-        if (!$this->active) {
-            return false;
-        }
-
-        $now = now();
-
-        if ($this->starts_at && $now->lt($this->starts_at)) {
-            return false;
-        }
-
-        if ($this->ends_at && $now->gt($this->ends_at)) {
-            return false;
-        }
-
-        if ($this->usage_limit !== null && $this->used_count >= $this->usage_limit) {
-            return false;
-        }
-
-        if ($amount < (float) $this->min_amount) {
-            return false;
-        }
-
-        if ($this->country_to_id && $countryToId && $this->country_to_id !== $countryToId) {
-            return false;
-        }
-
-        return true;
+public function isValidFor(float $amount, ?int $countryToId = null): bool
+{
+    // 1) Must be active
+    if (!$this->active) {
+        return false;
     }
+
+    // 2) Usage limit
+    if ($this->usage_limit !== null && $this->used_count >= $this->usage_limit) {
+        return false;
+    }
+
+    // 3) Minimum amount (remember: you're passing the FEE here)
+    if ($amount < (float) $this->min_amount) {
+        return false;
+    }
+
+    // 4) Country restriction: if promo is tied to a specific destination,
+    //    the destinationCountryId MUST match.
+    if ($this->country_to_id !== null) {
+       
+        if ($countryToId === null) {
+            return false;
+        }
+
+        if ($this->country_to_id !== $countryToId) {
+            return false;
+        }
+    }
+
+    // (Optional: later you can add date window checks here again)
+
+    return true;
+}
+
+
+   
+
+
 }
 
 
