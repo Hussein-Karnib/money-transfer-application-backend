@@ -14,7 +14,7 @@ use App\Http\Controllers\TransferFeeController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\UserVerificationController;
 use App\Http\Controllers\UserController;
-
+use App\Http\Controllers\NotificationController;
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -114,6 +114,12 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
 Route::middleware(['auth:sanctum'])->group(function () {
 
+    Route::prefix('notifications')->group(function () {
+    Route::get('/',          [NotificationController::class, 'index']);
+    Route::get('/unread',    [NotificationController::class, 'unread']);
+    Route::post('/{id}/read',[NotificationController::class, 'markAsRead']);
+    Route::post('/read-all', [NotificationController::class, 'markAllAsRead']);
+    });
     // ---- Auth / Profile ----
     Route::post('/auth/logout', [AuthController::class, 'logout']);
 

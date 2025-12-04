@@ -1,7 +1,7 @@
 <?php
 
 namespace App\Services;
-
+use App\Notifications\TransferStatusUpdated;
 use App\Models\Transfer;
 use App\Models\Transfer_Event;
 use App\Models\Transfer_Fee;
@@ -16,6 +16,8 @@ use Illuminate\Support\Facades\Log;
 
 class TransferService
 {
+
+    
     public function __construct(
         private ExchangeRateService $exchangeRateService
     ) {}
@@ -310,5 +312,31 @@ class TransferService
 
         return $this->updateStatus($transferId, 'refunded', 'Transfer refunded by admin', 'admin', $adminId);
     }
+    private function notifyUserOfStatusChange(Transfer $transfer, string $newStatus, string $note = ''): void
+{
+    $user = $transfer->sender; // assuming relation Transfer->sender()
+
+    if (!$user) {
+        return;
+    }
+
+    $oldStatus = $transfer->getOriginal('status'); // status before saving
+
+    $user->notify(new TransferStatusUpdated($transfer, $oldStatus, $newStatus));
+}
+// in TransferStatusUpdated
+
+public function via($notifiable): array
+{
+    $channels = ['database', 'mail'];
+
+    // only send SMS if user has a phone
+    if (!empty($notifiable->phone_number)) {
+        $channels[] = 'sms'; // custom channel name
+    }
+
+    return $channels;
+}
+
 }
 
