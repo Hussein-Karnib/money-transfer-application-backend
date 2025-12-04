@@ -355,11 +355,15 @@ Route::middleware(['auth'])->group(function () {
         
         $totalTransfers = App\Models\Transfer::where('sender_id', $user->id)->count();
         $lastTransferStatus = $transfers->first() ? $transfers->first()->status : 'N/A';
+        $accountBalance = $user->balance ?? 0;
+        $balanceCurrency = $user->balance_currency ?? ($transfers->first()?->currency_from ?? 'USD');
+        $accountStatus = $user->status ?? 'pending';
+        $accountName = $user->name ?? 'User';
         
         // Get unread notifications count from database using Laravel's Notifiable trait
         $unreadCount = $user->unreadNotifications()->count();
         
-        return view('dashboard', compact('transfers', 'totalTransfers', 'lastTransferStatus', 'unreadCount'));
+        return view('dashboard', compact('transfers', 'totalTransfers', 'lastTransferStatus', 'unreadCount', 'accountBalance', 'balanceCurrency', 'accountStatus', 'accountName'));
     })->name('dashboard');
     
     // App routes with 'app.' prefix for views
@@ -391,7 +395,7 @@ Route::middleware(['auth'])->group(function () {
                 ->get();
             $currencies = App\Models\Currency::orderBy('code')->get();
             
-            return view('transfers.create', compact('beneficiaries', 'currencies'));
+            return view('transfers.create', compact('beneficiaries', 'currencies', 'methods'));
         })->name('transfers.create');
         
         // Search transfer services
@@ -444,7 +448,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/transfers/search', [TransferSearchController::class, 'search'])->name('transfers.search.post');
     Route::post('/transfers', [TransferController::class, 'store'])->name('transfers.store');
     Route::get('/transfers/{transfer}', function (App\Models\Transfer $transfer) {
-        $transfer->load(['beneficiary.country', 'beneficiary.method', 'events', 'payment']);
+        $transfer->load(['beneficiary.country', 'beneficiary.method', 'events', 'payment', 'transferMethod']);
         return view('transfers.show', compact('transfer'));
     })->name('transfers.show');
     

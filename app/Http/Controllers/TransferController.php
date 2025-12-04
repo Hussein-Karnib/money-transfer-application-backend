@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Transfer;
 use App\Models\Beneficiary;
+use App\Models\Transfer_Method;
 use App\Services\ExchangeRateService;
 use App\Services\TransferService;
 use App\Services\PromotionService;
@@ -199,16 +200,21 @@ class TransferController extends Controller
             'amount'                 => ['required', 'numeric', 'min:1'],
             'currency_from'          => ['required', 'string', 'size:3', 'exists:currencies,code'],
             'currency_to'            => ['required', 'string', 'size:3', 'exists:currencies,code'],
-            'speed'                  => ['nullable', 'string', 'in:standard,express'],
+            'speed'                  => ['nullable', 'string', 'in:instant,same_day,express,standard'],
             'promo_code'             => ['nullable', 'string', 'max:50'],
             'destination_country_id' => ['nullable', 'integer', 'exists:countries,id'],
+            'transfer_method_id'     => ['nullable', 'integer', 'exists:transfer_methods,id'],
         ]);
 
         $userId = Auth::id();
+        $speed  = $data['speed'] ?? 'standard';
+        $speedProfile = $this->transferService->resolveSpeedProfile($speed);
 
         $beneficiary = Beneficiary::where('id', $data['beneficiary_id'])
             ->where('user_id', $userId)
             ->firstOrFail();
+
+        $transferMethodId = $data['transfer_method_id'] ?? $beneficiary->transfer_method_id;
 
         $amount = (float) $data['amount'];
 
@@ -229,7 +235,8 @@ class TransferController extends Controller
         $fee = (float) $this->transferService->calculateFee(
             $amount,
             $senderCountryId,
-            $destinationCountryId
+            $destinationCountryId,
+            $speed
         );
 
         // 3) Promotion / discount (again on FEE, server-side)
@@ -242,7 +249,8 @@ class TransferController extends Controller
                 [$promotion, $discountAmount] = $this->promotionService->validateAndCalculate(
                     $data['promo_code'],
                     $fee,
-                    $destinationCountryId
+                    $destinationCountryId,
+                    $data['speed'] ?? 'standard'
                 );
 
                 $discountAmount = min($discountAmount, $fee);
@@ -263,8 +271,7 @@ class TransferController extends Controller
         $recipientAmount = $amount * $exchangeRate;
 
         // 5) Delivery estimate
-        $speed               = $data['speed'] ?? 'standard';
-        $deliveryMinutes     = $speed === 'express' ? 60 : 1440;
+        $deliveryMinutes     = $speedProfile['minutes'];
         $estimatedDeliveryAt = now()->addMinutes($deliveryMinutes);
 
         try {
@@ -310,7 +317,7 @@ class TransferController extends Controller
     {
         $transfer = Transfer::where('id', $id)
             ->where('sender_id', Auth::id())
-            ->with(['beneficiary.country', 'beneficiary.method', 'events', 'payment', 'promotion'])
+            ->with(['beneficiary.country', 'beneficiary.method', 'events', 'payment', 'promotion', 'transferMethod'])
             ->firstOrFail();
 
         return response()->json([

@@ -28,7 +28,7 @@
                     <dd class="col-sm-9">
                         <strong>{{ number_format($transfer->amount, 2) }} {{ $transfer->currency_from }}</strong>
                         @if($transfer->currency_from !== $transfer->currency_to)
-                            → {{ number_format($transfer->amount_received ?? 0, 2) }} {{ $transfer->currency_to }}
+                            -> {{ number_format($transfer->amount_received, 2) }} {{ $transfer->currency_to }}
                         @endif
                     </dd>
 
@@ -39,6 +39,11 @@
                             <br><small class="text-muted">{{ $transfer->beneficiary->country->name ?? '' }}</small>
                         @endif
                     </dd>
+
+                    @if($transfer->transferMethod)
+                    <dt class="col-sm-3">Payout Method:</dt>
+                    <dd class="col-sm-9">{{ $transfer->transferMethod->name }}</dd>
+                    @endif
 
                     <dt class="col-sm-3">Initiated At:</dt>
                     <dd class="col-sm-9">{{ $transfer->initiated_at ? \Carbon\Carbon::parse($transfer->initiated_at)->format('M d, Y H:i') : 'N/A' }}</dd>
@@ -81,6 +86,6 @@
         </div>
         @endif
     </div>
+
 </div>
 @endsection
-
