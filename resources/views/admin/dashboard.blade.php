@@ -1,157 +1,107 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Dashboard</title>
-    <style>
-        body {
-            font-family: sans-serif;
-            display: flex;
-            background-color: white;
-            color: black;
-        }
-        .sidebar {
-            width: 250px;
-            background-color: gray;
-            color: white;
-            display: flex;
-            flex-direction: column;
-            padding: 20px;
-        }
+@extends('layouts.app')
 
-        .sidebar h2 {
-            margin-bottom: 30px;
-            text-align: center;
-            border-bottom: 1px solid white;
-            padding-bottom: 10px;
-        }
+@section('title', 'Admin Dashboard')
 
-        .nav-links {
-            list-style: none;
-            padding: 0;
-        }
-
-        .nav-links li {
-            margin-bottom: 15px;
-        }
-
-        .nav-links a {
-            text-decoration: none;
-            color: white;
-            display: block;
-            padding: 10px;
-        }
-
-        .nav-links a:hover {
-            background-color: silver;
-            color: blue;        }
-        
-        .logout-btn {
-            background: none;
-            border: none;
-            color: white;
-            cursor: pointer;
-            padding: 10px;
-            text-align: left;
-            width: 100%;
-        }
-        
-        .logout-btn:hover {
-             background-color: silver;
-             color: blue;
-        }
-
-
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 30px;
-            background: white;
-            padding: 20px;
-            border: 1px solid gray;
-
-        }
-
-        .user-info {
-            font-weight: bold;
-        }
-
-        .dashboard-cards {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
-        }
-
-        .card {
-            background: white;
-            padding: 20px;
-            border: 1px solid black;
-         text-align: center;
-        }
-
-        .card h3 {
-            margin-top: 0;
-            color: black;
-        }
-
-        .card .number {
-            font-weight: bold;
-            color: blue;
-            margin: 10px;
-        }
-    </style>
-</head>
-<body>
-
-    <div class="sidebar">
-        <h2>Admin Panel</h2>
-        <ul class="nav-links">
-            <li><a href="{{ route('admin.dashboard') }}">Dashboard</a></li>
-            <li><a href="{{ route('admin.reports') }}">Reports</a></li>
-            <li><a href="{{ route('admin.auditTable') }}">Audit Logs</a></li>
-            <li><a href="{{ route('admin.statistics') }}">Statistics</a></li>
-            <li>
-                <form method="POST" action="#" id="logout-form">
-                    @csrf
-                    <a href="#" onclick="alert('Logout clicked'); return false;">Logout</a>
-                </form>
-            </li>
-        </ul>
+@section('content')
+<div class="page-header">
+    <div class="container-fluid px-4">
+        <h1><i class="bi bi-speedometer2 me-2"></i>Admin Dashboard</h1>
+        <p>Manage your money transfer platform</p>
     </div>
+</div>
 
-    <div class="main-content">
-        <div class="header">
-            <h1>Dashboard</h1>
-            <div class="user-info">
-                Welcome
-            </div>
+@if(session('success'))
+    <div class="container-fluid px-4 mb-4">
+        <div class="alert alert-success alert-dismissible fade show">
+            {{ session('success') }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
+    </div>
+@endif
 
-        <div class="dashboard-cards">
-            <div class="card">
-                <h3>Total Agents</h3>
-                <div class="number">{{ $data['active_agents_count'] }}</div>
-                <p>Active agents</p>
+<div class="row g-4 mb-4">
+    <div class="col-md-3">
+        <div class="stat-card primary">
+            <div class="stat-label">Active Agents</div>
+            <div class="stat-value">{{ $data['active_agents_count'] ?? 0 }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card success">
+            <div class="stat-label">Total Transactions</div>
+            <div class="stat-value">{{ $data['total_transactions_count'] ?? 0 }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card warning">
+            <div class="stat-label">Pending Approvals</div>
+            <div class="stat-value">{{ $data['pending_approvals_count'] ?? 0 }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card danger">
+            <div class="stat-label">System Alerts</div>
+            <div class="stat-value">0</div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-6">
+        <div class="card-modern">
+            <div class="card-header">
+                <i class="bi bi-lightning-charge me-2"></i>Quick Actions
             </div>
-            <div class="card">
-                <h3>Transactions</h3>
-                <div class="number">{{ $data['total_transactions_count'] }}</div>
-                <p>Completed transfers</p>
-            </div>
-            <div class="card">
-                <h3>Pending Approvals</h3>
-                <div class="number">{{ $data['pending_approvals_count'] }}</div>
-                <p>Agents pending</p>
-            </div>
-            <div class="card">
-                <h3>System Alerts</h3>
-                <div class="number">0</div>
-                <p>Requires attention</p>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <a href="{{ route('admin.approvals') }}" class="btn btn-primary-modern btn-modern">
+                        <i class="bi bi-check-circle me-2"></i>Review Pending Approvals
+                        @if(($data['pending_approvals_count'] ?? 0) > 0)
+                            <span class="badge bg-danger badge-modern ms-2">{{ $data['pending_approvals_count'] }}</span>
+                        @endif
+                    </a>
+                    <a href="{{ route('admin.agents.index') }}" class="btn btn-outline-modern btn-modern">
+                        <i class="bi bi-people me-2"></i>Manage Agents
+                    </a>
+                    <a href="{{ route('admin.statistics') }}" class="btn btn-outline-modern btn-modern">
+                        <i class="bi bi-graph-up me-2"></i>View Statistics
+                    </a>
+                    <a href="{{ route('admin.reports.index') }}" class="btn btn-outline-modern btn-modern">
+                        <i class="bi bi-file-earmark-text me-2"></i>Reports
+                    </a>
+                    <a href="{{ route('admin.auditTable') }}" class="btn btn-outline-modern btn-modern">
+                        <i class="bi bi-clock-history me-2"></i>Audit Logs
+                    </a>
+                </div>
             </div>
         </div>
     </div>
 
-</body>
-</html>
+    <div class="col-lg-6">
+        <div class="card-modern">
+            <div class="card-header">
+                <i class="bi bi-info-circle me-2"></i>System Information
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <small class="text-muted">Total Agents</small>
+                    <p class="mb-0 h5">{{ $data['active_agents_count'] ?? 0 }} Active</p>
+                </div>
+                <div class="mb-3">
+                    <small class="text-muted">Total Transactions</small>
+                    <p class="mb-0 h5">{{ $data['total_transactions_count'] ?? 0 }} Transfers</p>
+                </div>
+                <div class="mb-3">
+                    <small class="text-muted">Pending Approvals</small>
+                    <p class="mb-0 h5 text-warning">{{ $data['pending_approvals_count'] ?? 0 }} Waiting</p>
+                </div>
+                <hr>
+                <p class="text-muted small mb-0">
+                    <i class="bi bi-shield-check me-1"></i>
+                    Last updated: {{ now()->format('M d, Y H:i') }}
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+@endsection

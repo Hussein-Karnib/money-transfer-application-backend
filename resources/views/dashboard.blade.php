@@ -161,10 +161,6 @@
                         <strong>{{ auth()->user()->created_at->format('M Y') }}</strong>
                     </div>
                 </div>
-                <hr>
-                <a href="{{ route('app.kyc.show') }}" class="btn btn-outline-modern btn-modern w-100">
-                    <i class="bi bi-shield-check me-2"></i>Verify Identity
-                </a>
             </div>
         </div>
     </div>

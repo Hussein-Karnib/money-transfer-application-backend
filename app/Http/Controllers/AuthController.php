@@ -176,6 +176,27 @@ class AuthController extends Controller
 
         if (Auth::attempt($credentials, $request->boolean('remember'))) {
             $request->session()->regenerate();
+            // Redirect based on user role
+            $user = Auth::user();
+            
+            if ($user->role) {
+                $roleName = strtolower($user->role->name);
+                
+                // Redirect admins to admin dashboard
+                if ($roleName === 'admin') {
+                    return redirect()->route('admin.dashboard')->with('success', 'Welcome back, Admin!');
+                }
+                
+                // Redirect agents to agent portal
+                if ($roleName === 'agent') {
+                    $agent = \App\Models\Agent::where('user_id', $user->id)->first();
+                    if ($agent) {
+                        return redirect()->route('portal.dashboard')->with('success', 'Welcome back!');
+                    }
+                }
+            }
+            
+            // Regular users go to regular dashboard
             return redirect()->intended(route('dashboard'))->with('success', 'Welcome back!');
         }
 

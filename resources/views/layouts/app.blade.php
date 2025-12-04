@@ -368,7 +368,7 @@
 <body>
     <nav class="navbar navbar-expand-lg navbar-modern">
         <div class="container-fluid">
-            <a class="navbar-brand" href="{{ route('dashboard') }}">
+            <a class="navbar-brand" href="{{ auth()->check() && auth()->user()->role && strtolower(auth()->user()->role->name) === 'admin' ? route('admin.dashboard') : route('dashboard') }}">
                 <i class="bi bi-send-fill"></i> MoneyTransfer
             </a>
 
@@ -380,48 +380,117 @@
 
             <div class="collapse navbar-collapse" id="navbarMain">
                 <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-                    <li class="nav-item">
-                        <a class="nav-link {{ request()->routeIs('dashboard') ? 'active' : '' }}" 
-                           href="{{ route('dashboard') }}">
-                            <i class="bi bi-speedometer2 me-1"></i> Dashboard
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {{ request()->routeIs('app.transfers.*') ? 'active' : '' }}" 
-                           href="{{ route('app.transfers.index') }}">
-                            <i class="bi bi-arrow-left-right me-1"></i> Transfers
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {{ request()->routeIs('app.beneficiaries.*') ? 'active' : '' }}" 
-                           href="{{ route('app.beneficiaries.index') }}">
-                            <i class="bi bi-people me-1"></i> Beneficiaries
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {{ request()->routeIs('app.bank-accounts.*') ? 'active' : '' }}" 
-                           href="{{ route('app.bank-accounts.index') }}">
-                            <i class="bi bi-bank me-1"></i> Bank Accounts
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {{ request()->routeIs('app.kyc.*') ? 'active' : '' }}" 
-                           href="{{ route('app.kyc.show') }}">
-                            <i class="bi bi-shield-check me-1"></i> KYC
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {{ request()->routeIs('app.notifications.*') ? 'active' : '' }}" 
-                           href="{{ route('app.notifications.index') }}">
-                            <i class="bi bi-bell me-1"></i> Notifications
-                            @php
-                                $unreadCount = auth()->check() ? auth()->user()->unreadNotifications()->count() : 0;
-                            @endphp
-                            @if($unreadCount > 0)
-                                <span class="badge bg-danger badge-modern ms-1">{{ $unreadCount }}</span>
-                            @endif
-                        </a>
-                    </li>
+                    @auth
+                        @if(Auth::user()->role && strtolower(Auth::user()->role->name) === 'admin')
+                            {{-- Admin Navigation --}}
+                            <li class="nav-item">
+                                <a class="nav-link {{ request()->routeIs('admin.dashboard') ? 'active' : '' }}" 
+                                   href="{{ route('admin.dashboard') }}">
+                                    <i class="bi bi-speedometer2 me-1"></i> Dashboard
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link {{ request()->routeIs('admin.approvals') ? 'active' : '' }}" 
+                                   href="{{ route('admin.approvals') }}">
+                                    <i class="bi bi-check-circle me-1"></i> Approvals
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link {{ request()->routeIs('admin.agents.*') ? 'active' : '' }}" 
+                                   href="{{ route('admin.agents.index') }}">
+                                    <i class="bi bi-people me-1"></i> Agents
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link {{ request()->routeIs('admin.statistics') ? 'active' : '' }}" 
+                                   href="{{ route('admin.statistics') }}">
+                                    <i class="bi bi-graph-up me-1"></i> Statistics
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link {{ request()->routeIs('admin.reports.*') ? 'active' : '' }}" 
+                                   href="{{ route('admin.reports.index') }}">
+                                    <i class="bi bi-file-earmark-text me-1"></i> Reports
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link {{ request()->routeIs('admin.auditTable.*') ? 'active' : '' }}" 
+                                   href="{{ route('admin.auditTable') }}">
+                                    <i class="bi bi-clock-history me-1"></i> Audit Logs
+                                </a>
+                            </li>
+                        @elseif(Auth::user()->role && strtolower(Auth::user()->role->name) === 'agent')
+                            {{-- Agent Navigation --}}
+                            <li class="nav-item">
+                                <a class="nav-link {{ request()->routeIs('portal.dashboard') ? 'active' : '' }}" 
+                                   href="{{ route('portal.dashboard') }}">
+                                    <i class="bi bi-speedometer2 me-1"></i> Dashboard
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link {{ request()->routeIs('portal.transfers.*') ? 'active' : '' }}" 
+                                   href="{{ route('portal.transfers.pending', ['type' => 'cash_in']) }}">
+                                    <i class="bi bi-arrow-down-circle me-1"></i> Cash-In
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link {{ request()->routeIs('portal.transfers.*') ? 'active' : '' }}" 
+                                   href="{{ route('portal.transfers.pending', ['type' => 'cash_out']) }}">
+                                    <i class="bi bi-arrow-up-circle me-1"></i> Cash-Out
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link {{ request()->routeIs('portal.transactions.*') ? 'active' : '' }}" 
+                                   href="{{ route('portal.transactions.index') }}">
+                                    <i class="bi bi-list-ul me-1"></i> Transactions
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link {{ request()->routeIs('portal.commissions') ? 'active' : '' }}" 
+                                   href="{{ route('portal.commissions') }}">
+                                    <i class="bi bi-graph-up me-1"></i> Commissions
+                                </a>
+                            </li>
+                        @else
+                            {{-- Regular User Navigation --}}
+                            <li class="nav-item">
+                                <a class="nav-link {{ request()->routeIs('dashboard') ? 'active' : '' }}" 
+                                   href="{{ route('dashboard') }}">
+                                    <i class="bi bi-speedometer2 me-1"></i> Dashboard
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link {{ request()->routeIs('app.transfers.*') ? 'active' : '' }}" 
+                                   href="{{ route('app.transfers.index') }}">
+                                    <i class="bi bi-arrow-left-right me-1"></i> Transfers
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link {{ request()->routeIs('app.beneficiaries.*') ? 'active' : '' }}" 
+                                   href="{{ route('app.beneficiaries.index') }}">
+                                    <i class="bi bi-people me-1"></i> Beneficiaries
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link {{ request()->routeIs('app.bank-accounts.*') ? 'active' : '' }}" 
+                                   href="{{ route('app.bank-accounts.index') }}">
+                                    <i class="bi bi-bank me-1"></i> Bank Accounts
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link {{ request()->routeIs('app.notifications.*') ? 'active' : '' }}" 
+                                   href="{{ route('app.notifications.index') }}">
+                                    <i class="bi bi-bell me-1"></i> Notifications
+                                    @php
+                                        $unreadCount = auth()->check() ? auth()->user()->unreadNotifications()->count() : 0;
+                                    @endphp
+                                    @if($unreadCount > 0)
+                                        <span class="badge bg-danger badge-modern ms-1">{{ $unreadCount }}</span>
+                                    @endif
+                                </a>
+                            </li>
+                        @endif
+                    @endauth
                 </ul>
 
                 <div class="user-menu">
