@@ -22,15 +22,51 @@ class TransferService
         private ExchangeRateService $exchangeRateService
     ) {}
 
-   
-    public function calculateFee(float $amount, int $countryFromId, int $countryToId): float
+    public function getSpeedProfiles(): array
     {
-        // Validate amount
+        return [
+            'instant' => [
+                'label'          => 'Instant',
+                'minutes'        => 15,
+                'fee_multiplier' => 1.5,
+                'eta_text'       => 'Within 15 mins',
+            ],
+            'express' => [
+                'label'          => 'Express',
+                'minutes'        => 120,
+                'fee_multiplier' => 1.25,
+                'eta_text'       => 'In about 2 hours',
+            ],
+            'same_day' => [
+                'label'          => 'Same Day',
+                'minutes'        => 360,
+                'fee_multiplier' => 1.15,
+                'eta_text'       => 'Arrives today',
+            ],
+            'standard' => [
+                'label'          => 'Standard',
+                'minutes'        => 1440,
+                'fee_multiplier' => 1.0,
+                'eta_text'       => 'By tomorrow',
+            ],
+        ];
+    }
+
+    public function resolveSpeedProfile(string $speed): array
+    {
+        $profiles = $this->getSpeedProfiles();
+
+        return $profiles[$speed] ?? $profiles['standard'];
+    }
+
+    public function calculateFee(float $amount, int $countryFromId, int $countryToId, string $speed = 'standard'): float
+    {
         if ($amount <= 0) {
             throw new \Exception('Transfer amount must be greater than 0');
         }
 
-        // Find matching fee rule
+        $speedProfile = $this->resolveSpeedProfile($speed);
+
         $feeRule = Transfer_Fee::where('country_from_id', $countryFromId)
             ->where('country_to_id', $countryToId)
             ->where('min_amount', '<=', $amount)
@@ -38,16 +74,15 @@ class TransferService
             ->first();
 
         if (!$feeRule) {
-            // Default fee: 2% of amount with minimum $5
+            $baseFee = max($amount * 0.02, 5.0);
             Log::info("No fee rule found for countries {$countryFromId} -> {$countryToId}, using default fee");
-            return max($amount * 0.02, 5.0);
+        } else {
+            $baseFee = ($feeRule->fee_fixed ?? 0) + ($amount * ($feeRule->fee_percent ?? 0) / 100);
         }
 
-        // Calculate fee: fixed + percentage
-        $fee = $feeRule->fee_fixed ?? 0;
-        $fee += ($amount * ($feeRule->fee_percent ?? 0) / 100);
+        $adjustedFee = $baseFee * $speedProfile['fee_multiplier'];
 
-        return round($fee, 2);
+        return round($adjustedFee, 2);
     }
 
    
@@ -117,7 +152,8 @@ class TransferService
             $fee = $this->calculateFee(
                 $amount,
                 $senderCountryId,
-                $beneficiary->country_id
+                $beneficiary->country_id,
+                $data['speed'] ?? 'standard'
             );
 
             // Handle optional promotion / discount
@@ -137,6 +173,9 @@ class TransferService
             // Calculate total amount (amount + fee - discount)
             $totalAmount = max(0, $amount + $fee - $discountAmount);
 
+            // Determine transfer method (explicit or beneficiary default)
+            $transferMethodId = $data['transfer_method_id'] ?? $beneficiary->transfer_method_id ?? null;
+
             // Generate unique reference code
             $reference = $this->generateReference();
 
@@ -144,6 +183,7 @@ class TransferService
             $transfer = Transfer::create([
                 'sender_id' => $data['sender_id'],
                 'beneficiary_id' => $data['beneficiary_id'],
+                'transfer_method_id' => $transferMethodId,
                 'amount' => $amount,
                 'currency_from' => strtoupper($data['currency_from']),
                 'currency_to' => strtoupper($data['currency_to']),
@@ -339,4 +379,3 @@ public function via($notifiable): array
 }
 
 }
-

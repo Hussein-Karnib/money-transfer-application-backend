@@ -32,7 +32,7 @@
                             <th>#</th>
                             <th>Beneficiary</th>
                             <th>Amount</th>
-                            <th>From → To</th>
+                            <th>From -> To</th>
                             <th>Status</th>
                             <th>Reference</th>
                             <th>Initiated</th>
