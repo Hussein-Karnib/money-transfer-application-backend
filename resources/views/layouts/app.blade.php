@@ -54,7 +54,12 @@
                 <li class="nav-item">
                     <a class="nav-link" href="{{ route('app.notifications.index') }}">
                         Notifications
-                        <span id="unread-count" class="badge bg-danger badge-pill d-none"></span>
+                        @php
+                            $unreadCount = auth()->check() ? auth()->user()->unreadNotifications()->count() : 0;
+                        @endphp
+                        @if($unreadCount > 0)
+                            <span class="badge bg-danger badge-pill">{{ $unreadCount }}</span>
+                        @endif
                     </a>
                 </li>
             </ul>
@@ -77,33 +82,8 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
 <script>
-    // Global CSRF for fetch
-    window.csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-
-    async function fetchUnreadCount() {
-        try {
-            const res = await fetch("{{ route('notifications.unread') }}");
-            if (!res.ok) return;
-            const data = await res.json();
-            if (data.success) {
-                const count = data.data.length || 0;
-                const badge = document.getElementById('unread-count');
-                if (badge) {
-                    if (count > 0) {
-                        badge.classList.remove('d-none');
-                        badge.textContent = count;
-                    } else {
-                        badge.classList.add('d-none');
-                    }
-                }
-            }
-        } catch (e) {
-            console.error(e);
-        }
-    }
-
-    // Call once on load
-    fetchUnreadCount();
+    // Global CSRF token (if needed for forms)
+    window.csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 </script>
 
 @yield('scripts')

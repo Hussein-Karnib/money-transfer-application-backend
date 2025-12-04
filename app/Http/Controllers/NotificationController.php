@@ -27,27 +27,39 @@ class NotificationController extends Controller
         ]);
     }
 
-    public function markAsRead(Request $request, string $id): JsonResponse
+    public function markAsRead(Request $request, string $id)
     {
         $user = $request->user();
 
         $notification = $user->notifications()->where('id', $id)->firstOrFail();
         $notification->markAsRead();
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Notification marked as read',
-        ]);
+        // Check if this is a web request
+        if ($request->wantsJson() || $request->is('api/*')) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Notification marked as read',
+            ]);
+        }
+
+        // Web request - redirect back
+        return redirect()->route('app.notifications.index')->with('success', 'Notification marked as read');
     }
 
-    public function markAllAsRead(Request $request): JsonResponse
+    public function markAllAsRead(Request $request)
     {
         $user = $request->user();
         $user->unreadNotifications->markAsRead();
 
-        return response()->json([
-            'success' => true,
-            'message' => 'All notifications marked as read',
-        ]);
+        // Check if this is a web request
+        if ($request->wantsJson() || $request->is('api/*')) {
+            return response()->json([
+                'success' => true,
+                'message' => 'All notifications marked as read',
+            ]);
+        }
+
+        // Web request - redirect back
+        return redirect()->route('app.notifications.index')->with('success', 'All notifications marked as read');
     }
 }

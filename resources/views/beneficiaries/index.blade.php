@@ -5,119 +5,82 @@
 
 <div class="row mb-4">
     <div class="col-md-6">
-        <form id="beneficiary-form" class="card card-body">
-            @csrf
-            <h5 class="mb-3">Add Beneficiary</h5>
-            <div class="mb-3">
-                <label class="form-label">Full Name</label>
-                <input type="text" id="b_full_name" class="form-control" required>
-            </div>
-            <div class="mb-3">
-                <label class="form-label">Country ID</label>
-                <input type="number" id="b_country_id" class="form-control" required>
-            </div>
-            <div class="mb-3">
-                <label class="form-label">Transfer Method ID</label>
-                <input type="number" id="b_transfer_method_id" class="form-control" required>
-            </div>
+        <div class="card">
+            <div class="card-body">
+                <h5 class="mb-3">Add Beneficiary</h5>
+                <form method="POST" action="{{ route('beneficiaries.store') }}">
+                    @csrf
+                    <div class="mb-3">
+                        <label class="form-label">Full Name</label>
+                        <input type="text" name="full_name" class="form-control @error('full_name') is-invalid @enderror" value="{{ old('full_name') }}" required>
+                        @error('full_name')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Country</label>
+                        <select name="country_id" class="form-select @error('country_id') is-invalid @enderror" required>
+                            <option value="">Select Country</option>
+                            @foreach(App\Models\Country::all() as $country)
+                                <option value="{{ $country->id }}" {{ old('country_id') == $country->id ? 'selected' : '' }}>{{ $country->name }}</option>
+                            @endforeach
+                        </select>
+                        @error('country_id')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Transfer Method</label>
+                        <select name="transfer_method_id" class="form-select @error('transfer_method_id') is-invalid @enderror" required>
+                            <option value="">Select Method</option>
+                            @foreach(App\Models\Transfer_Method::all() as $method)
+                                <option value="{{ $method->id }}" {{ old('transfer_method_id') == $method->id ? 'selected' : '' }}>{{ $method->name }}</option>
+                            @endforeach
+                        </select>
+                        @error('transfer_method_id')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
 
-            <button type="button" class="btn btn-primary" id="btn-add-beneficiary">
-                Add
-            </button>
-        </form>
+                    <button type="submit" class="btn btn-primary">Add Beneficiary</button>
+                </form>
+            </div>
+        </div>
     </div>
 </div>
 
-<table class="table" id="beneficiaries-table">
-    <thead>
-    <tr>
-        <th>#</th>
-        <th>Full Name</th>
-        <th>Country</th>
-        <th>Method</th>
-        <th>Actions</th>
-    </tr>
-    </thead>
-    <tbody>
-    {{-- JS --}}
-    </tbody>
-</table>
-@endsection
-
-@section('scripts')
-<script>
-    async function loadBeneficiariesList() {
-        const res = await fetch("{{ route('beneficiaries.index') }}");
-        if (!res.ok) return;
-        const data = await res.json();
-        if (!data.success) return;
-
-        const tbody = document.querySelector('#beneficiaries-table tbody');
-        tbody.innerHTML = '';
-
-        data.data.forEach(b => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td>${b.id}</td>
-                <td>${b.full_name}</td>
-                <td>${b.country?.name ?? ''}</td>
-                <td>${b.method?.name ?? ''}</td>
+@if($beneficiaries->count() > 0)
+    <table class="table table-hover">
+        <thead>
+        <tr>
+            <th>#</th>
+            <th>Full Name</th>
+            <th>Country</th>
+            <th>Method</th>
+            <th>Actions</th>
+        </tr>
+        </thead>
+        <tbody>
+        @foreach($beneficiaries as $beneficiary)
+            <tr>
+                <td>{{ $beneficiary->id }}</td>
+                <td>{{ $beneficiary->full_name }}</td>
+                <td>{{ $beneficiary->country->name ?? '-' }}</td>
+                <td>{{ $beneficiary->method->name ?? '-' }}</td>
                 <td>
-                    <button class="btn btn-sm btn-outline-danger"
-                        onclick="deleteBeneficiary(${b.id})">Delete</button>
+                    <form method="POST" action="{{ route('beneficiaries.destroy', $beneficiary->id) }}" class="d-inline" onsubmit="return confirm('Delete this beneficiary?');">
+                        @csrf
+                        @method('DELETE')
+                        <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                    </form>
                 </td>
-            `;
-            tbody.appendChild(tr);
-        });
-    }
-
-    async function addBeneficiary() {
-        const payload = {
-            full_name: document.getElementById('b_full_name').value,
-            country_id: document.getElementById('b_country_id').value,
-            transfer_method_id: document.getElementById('b_transfer_method_id').value
-        };
-
-        const res = await fetch("{{ route('beneficiaries.store') }}", {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': window.csrfToken,
-                'Accept': 'application/json'
-            },
-            body: JSON.stringify(payload)
-        });
-
-        const data = await res.json();
-        if (!data.success) {
-            alert(data.message || 'Error adding beneficiary');
-            return;
-        }
-
-        document.getElementById('b_full_name').value = '';
-        loadBeneficiariesList();
-    }
-
-    async function deleteBeneficiary(id) {
-        if (!confirm('Delete this beneficiary?')) return;
-
-        const res = await fetch(`/beneficiaries/${id}`, {
-            method: 'DELETE',
-            headers: {
-                'X-CSRF-TOKEN': window.csrfToken,
-                'Accept': 'application/json'
-            }
-        });
-
-        const data = await res.json();
-        if (data.success) {
-            loadBeneficiariesList();
-        } else {
-            alert(data.message || 'Error');
-        }
-    }
-
-    document.getElementById('btn-add-beneficiary').addEventListener('click', addBeneficiary);
-    loadBeneficiariesList();
-</script>
+            </tr>
+        @endforeach
+        </tbody>
+    </table>
+@else
+    <div class="alert alert-info">
+        <p class="mb-0">No beneficiaries found. Add your first beneficiary above.</p>
+    </div>
+@endif
 @endsection

@@ -1,239 +1,337 @@
-    <?php
-
-    use Illuminate\Support\Facades\Route;
-    use App\Http\Controllers\Api\AgentHourApiController;
-    use App\Http\Controllers\Api\AgentTransactionApiController;
-    use App\Http\Controllers\CurrencyController;
-    use App\Http\Controllers\ExchangeRateController;
-    use App\Http\Controllers\UserBankAccountController;
-    use App\Http\Controllers\BeneficiaryController;
-    use App\Http\Controllers\TransferController;
-    use App\Http\Controllers\PaymentController;
-    use App\Http\Controllers\TransferEventController;
-    use App\Http\Controllers\TransferFeeController;
-    use App\Http\Controllers\AuthController;
-    use App\Http\Controllers\UserVerificationController;
-    use App\Http\Controllers\UserController;
-    use App\Http\Controllers\NotificationController;
+<?php
+use App\Http\Controllers\SocialAuthController;
+use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Http\Request;
+use App\Http\Controllers\AdminController;
 use App\Http\Controllers\ReportController;
+use App\Http\Controllers\AuditLogController;
+use App\Http\Controllers\AgentController;
+use App\Http\Controllers\AgentHourController;
+use App\Http\Controllers\StatisticController;
+use App\Http\Controllers\TransferController;
+use App\Http\Controllers\BeneficiaryController;
+use App\Http\Controllers\UserBankAccountController;
+use App\Http\Controllers\UserVerificationController;
+use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\AuthController;
 
-    /*
-    |--------------------------------------------------------------------------
-    | WEB ROUTES
-    |--------------------------------------------------------------------------
-    | These are for your Laravel web app (Blade views, session auth).
-    | Middleware group: "web" (sessions, cookies, CSRF).
-    | No automatic /api prefix here.
-    */
+Route::get('/auth/{provider}/callback', [SocialAuthController::class, 'callback'])
+    ->name('social.callback');
 
-    /*
-    |--------------------------------------------------------------------------
-    | PUBLIC ROUTES
-    |--------------------------------------------------------------------------
-    */
+// ========================================================================
+// 1. PUBLIC ROUTES (No Login Required)
+// ========================================================================
 
-    // Home page placeholder – later we’ll make it a dashboard / landing page
-    Route::get('/', function () {
-        return view('welcome'); // or a custom home view
-    })->name('home');
+// Home page
+Route::get('/', function () {
+    return view('welcome');
+})->name('home');
 
-    // Currencies
-    Route::prefix('currencies')->group(function () {
-        Route::get('/',      [CurrencyController::class, 'index'])->name('currencies.index');
-        Route::get('/{code}',[CurrencyController::class, 'show'])->name('currencies.show');
+// --- Agent Views ---
+// Agent map/list view (shows all approved agents)
+Route::get('/agents', function (Request $request) {
+    $query = App\Models\Agent::with(['user', 'hours'])
+        ->where('status', 'approved');
+    
+    $agents = $query->get();
+    
+    return view('agents.map', compact('agents'));
+})->name('agents.map');
+
+// Agent registration form view
+Route::get('/partner/register', function () {
+    return view('agents.create');
+})->name('agents.register');
+
+// Agent public profile view
+Route::get('/agents/{id}', function ($id) {
+    $agent = App\Models\Agent::with(['user', 'hours'])->findOrFail($id);
+    return view('agents.show', compact('agent'));
+})->name('agents.public_profile');
+
+// Agent registration form submission
+Route::post('/partner/register', [AgentController::class, 'store'])->name('agents.store');
+
+// --- Login Routes (for web views) ---
+Route::get('/login', function (Request $request) {
+    // Ensure session is started to generate CSRF token
+    $request->session()->regenerateToken();
+    return view('auth.login');
+})->name('login');
+
+Route::post('/login', [AuthController::class, 'login'])->name('auth.login');
+
+// --- Register Routes (for web views) ---
+Route::get('/register', function () {
+    if (!view()->exists('auth.register')) {
+        abort(500, 'Register view not found');
+    }
+    return view('auth.register');
+})->name('register');
+
+Route::post('/register', [AuthController::class, 'register'])->name('auth.register');
+
+// ========================================================================
+// 2. ADMIN ROUTES (Protected)
+// ========================================================================
+// Ensure you have a middleware (like 'role:admin') to protect these.
+
+Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->group(function () {
+    
+    // --- Dashboard ---
+    Route::get('/dashboard', [StatisticController::class, 'dashboard'])->name('dashboard');
+
+    // --- Manage System Admins ---
+    Route::resource('admins', AdminController::class);
+
+    // --- Reports ---
+    Route::get('/reports/{report}/download', [ReportController::class, 'download'])->name('reports.download');
+    Route::resource('reports', ReportController::class)->only(['index', 'create', 'store', 'destroy']);
+
+    // --- Audit Logs ---
+    Route::delete('/auditTable/prune', [AuditLogController::class, 'prune'])->name('auditTable.prune');
+    Route::get('/auditTable', [AuditLogController::class, 'index'])->name('auditTable');
+    Route::get('/auditTable/{id}', [AuditLogController::class, 'show'])->name('auditTable.show');
+
+    // --- Manage Agents (Approvals & Oversight) ---
+    // Admin agents list view - Load from database
+    Route::get('/agents', function (Request $request) {
+        $query = App\Models\Agent::with('user');
+        
+        if ($request->has('status')) {
+            $query->where('status', $request->status);
+        }
+        
+        $agents = $query->paginate(10);
+        
+        return view('admin.agents.index', compact('agents'));
+    })->name('agents.index');
+    
+    Route::patch('/agents/{agent}/status', [AgentController::class, 'updateStatus'])->name('agents.update_status'); // Approve/Suspend
+    Route::delete('/agents/{agent}', [AgentController::class, 'destroy'])->name('agents.destroy'); // Delete Agent
+
+    // --- Statistics ---
+    Route::get('/statistics', [StatisticController::class, 'statistic'])->name('statistics');
+    Route::get('/statistics/search', [StatisticController::class, 'searchDate'])->name('searchDate');
+});
+
+
+// ========================================================================
+// 3. AGENT PORTAL ROUTES (Protected)
+// ========================================================================
+// Routes for the Agent to manage their own store.
+
+Route::middleware(['auth', 'role:agent'])->prefix('portal')->name('portal.')->group(function () {
+    
+    // --- My Store Details ---
+    // Agent edit store details view
+    Route::get('/my-store/{agent}/edit', function (App\Models\Agent $agent) {
+        $agent->load('user');
+        return view('portal.agents.edit', compact('agent'));
+    })->name('agents.edit');
+    
+    // Agent update store details
+    Route::put('/my-store/{agent}', [AgentController::class, 'update'])->name('agents.update');
+
+    // --- Working Hours ---
+    // Agent hours index view
+    Route::get('/my-store/{agent}/hours', function (App\Models\Agent $agent) {
+        $hours = $agent->hours()->orderBy('day_of_week')->get();
+        $days = [
+            0 => 'Sunday', 1 => 'Monday', 2 => 'Tuesday', 
+            3 => 'Wednesday', 4 => 'Thursday', 5 => 'Friday', 6 => 'Saturday'
+        ];
+        return view('agents.hours.index', compact('agent', 'hours', 'days'));
+    })->name('hours.index');
+    
+    // Agent hours edit view
+    Route::get('/my-store/{agent}/hours/edit', function (App\Models\Agent $agent) {
+        $hours = $agent->hours->keyBy('day_of_week');
+        $days = [
+            0 => 'Sunday', 1 => 'Monday', 2 => 'Tuesday', 
+            3 => 'Wednesday', 4 => 'Thursday', 5 => 'Friday', 6 => 'Saturday'
+        ];
+        return view('agents.hours.edit', compact('agent', 'hours', 'days'));
+    })->name('hours.edit');
+    
+    // Agent hours update
+    Route::put('/my-store/{agent}/hours', [AgentHourController::class, 'update'])->name('hours.update');
+
+    // --- Commissions ---
+    // Agent commissions view
+    Route::get('/my-store/{agent}/commissions', function (App\Models\Agent $agent, Request $request) {
+        // Security: Ensure the logged-in user owns this agent profile
+        if (Auth::id() !== $agent->user_id) {
+            abort(403, 'Unauthorized access to commission records.');
+        }
+
+        $query = $agent->transactions();
+
+        // Filter by date range if provided
+        if ($request->has('from')) {
+            $query->whereDate('processed_at', '>=', $request->from);
+        }
+        if ($request->has('to')) {
+            $query->whereDate('processed_at', '<=', $request->to);
+        }
+
+        $transactions = $query->with('transfer')
+            ->latest('processed_at')
+            ->paginate(20);
+
+        // Calculate totals
+        $totalCommission = $agent->transactions()->sum('commission');
+        $monthlyCommission = $agent->transactions()
+            ->whereYear('processed_at', now()->year)
+            ->whereMonth('processed_at', now()->month)
+            ->sum('commission');
+        $todayCommission = $agent->transactions()
+            ->whereDate('processed_at', today())
+            ->sum('commission');
+
+        // Filtered totals
+        $filteredCommission = $query->sum('commission');
+
+        return view('portal.commissions', compact(
+            'agent',
+            'transactions',
+            'totalCommission',
+            'monthlyCommission',
+            'todayCommission',
+            'filteredCommission'
+        ));
+    })->name('commissions');
+});
+
+
+// ========================================================================
+// 4. AUTHENTICATED USER ROUTES (Shared)
+// ========================================================================
+
+Route::middleware(['auth'])->group(function () {
+    // Dashboard - Load data from database
+    Route::get('/dashboard', function (Request $request) {
+        $user = Auth::user();
+        
+        // Get transfers from database
+        $transfers = App\Models\Transfer::where('sender_id', $user->id)
+            ->with(['beneficiary.country', 'beneficiary.method', 'events', 'payment'])
+            ->orderBy('initiated_at', 'desc')
+            ->limit(5)
+            ->get();
+        
+        $totalTransfers = App\Models\Transfer::where('sender_id', $user->id)->count();
+        $lastTransferStatus = $transfers->first() ? $transfers->first()->status : 'N/A';
+        
+        // Get unread notifications count from database using Laravel's Notifiable trait
+        $unreadCount = $user->unreadNotifications()->count();
+        
+        return view('dashboard', compact('transfers', 'totalTransfers', 'lastTransferStatus', 'unreadCount'));
+    })->name('dashboard');
+    
+    // App routes with 'app.' prefix for views
+    Route::prefix('app')->name('app.')->group(function () {
+        // --- Transfers ---
+        // Transfers list view - Load from database
+        Route::get('/transfers', function (Request $request) {
+            $user = Auth::user();
+            
+            $query = App\Models\Transfer::where('sender_id', $user->id)
+                ->with(['beneficiary.country', 'beneficiary.method', 'events', 'payment']);
+            
+            if ($request->has('status')) {
+                $query->where('status', $request->status);
+            }
+            
+            $transfers = $query->orderBy('initiated_at', 'desc')->paginate(15);
+            
+            return view('transfers.index', compact('transfers'));
+        })->name('transfers.index');
+        
+        // Create transfer view
+        Route::get('/transfers/create', function () {
+            // Load beneficiaries and currencies for the form
+            $user = Auth::user();
+            $beneficiaries = App\Models\Beneficiary::where('user_id', $user->id)
+                ->with(['country', 'method'])
+                ->get();
+            $currencies = App\Models\Currency::all();
+            
+            return view('transfers.create', compact('beneficiaries', 'currencies'));
+        })->name('transfers.create');
+        
+        // --- Beneficiaries ---
+        // Beneficiaries list view - Load from database
+        Route::get('/beneficiaries', function () {
+            $user = Auth::user();
+            $beneficiaries = App\Models\Beneficiary::where('user_id', $user->id)
+                ->with(['country', 'method'])
+                ->get();
+            
+            return view('beneficiaries.index', compact('beneficiaries'));
+        })->name('beneficiaries.index');
+        
+        // --- Bank Accounts ---
+        // Bank accounts list view - Load from database
+        Route::get('/bank-accounts', function () {
+            $user = Auth::user();
+            $bankAccounts = App\Models\UserBankAccount::where('user_id', $user->id)->get();
+            
+            return view('bank_accounts.index', compact('bankAccounts'));
+        })->name('bank-accounts.index');
+        
+        // --- KYC ---
+        // KYC view - Load from database
+        Route::get('/kyc', function () {
+            $user = Auth::user();
+            $verification = App\Models\UserVerification::where('user_id', $user->id)->first();
+            
+            return view('kyc.show', compact('verification'));
+        })->name('kyc.show');
+        
+        // --- Notifications ---
+        // Notifications list view - Load from database
+        Route::get('/notifications', function () {
+            $user = Auth::user();
+            
+            $notifications = $user->notifications()->orderBy('created_at', 'desc')->paginate(20);
+            $unreadCount = $user->unreadNotifications()->count();
+            
+            return view('notifications.index', compact('notifications', 'unreadCount'));
+        })->name('notifications.index');
     });
+});
 
-    // Exchange Rates
-    Route::prefix('exchange-rates')->group(function () {
-        Route::get('/',           [ExchangeRateController::class, 'index'])->name('rates.index');
-        Route::get('/convert',    [ExchangeRateController::class, 'convert'])->name('rates.convert');
-        Route::get('/{from}/{to}',[ExchangeRateController::class, 'show'])->name('rates.show');
-    });
 
-    // Auth (for now still JSON-style login/register)
-    // Later we can replace this with proper web auth (Breeze/Fortify/etc.)
-    Route::post('/auth/register', [AuthController::class, 'register'])->name('auth.register');
-    Route::post('/auth/login',    [AuthController::class, 'login'])->name('auth.login');
-    Route::post('/auth/social',   [AuthController::class, 'socialLogin'])->name('auth.social');
+// ========================================================================
+// 6. FORM SUBMISSIONS & ACTIONS (POST/PUT/DELETE)
+// ========================================================================
 
-    /*
-    |--------------------------------------------------------------------------
-    | AGENT PUBLIC / PROTECTED ROUTES
-    |--------------------------------------------------------------------------
-    */
-
-    // Public agent hours (no login required)
-    Route::get('/agents/{agent}/hours', [AgentHourApiController::class, 'show'])
-        ->name('agents.hours.show');
-
-    /*
-    |--------------------------------------------------------------------------
-    | AUTHENTICATED USER ROUTES (WEB GUARD)
-    |--------------------------------------------------------------------------
-    | Now we switch from auth:sanctum to auth (session-based).
-    | These are the routes your web UI will use after login.
-    */
-
-    Route::middleware(['auth'])->group(function () {
-
-        // ---- Notifications (for web "bell" icon & notifications page) ----
-        Route::prefix('notifications')->group(function () {
-            Route::get('/',           [NotificationController::class, 'index'])->name('notifications.index');
-            Route::get('/unread',     [NotificationController::class, 'unread'])->name('notifications.unread');
-            Route::post('/{id}/read', [NotificationController::class, 'markAsRead'])->name('notifications.read');
-            Route::post('/read-all',  [NotificationController::class, 'markAllAsRead'])->name('notifications.read_all');
-        });
-
-        // ---- Auth / Profile ----
-        Route::post('/auth/logout', [AuthController::class, 'logout'])->name('auth.logout');
-
-        Route::get('/me',  [UserController::class, 'me'])->name('profile.show');
-        Route::put('/me',  [UserController::class, 'update'])->name('profile.update');
-
-        /*
-        |--------------------------------------------------------------------------
-        | KYC ROUTES
-        |--------------------------------------------------------------------------
-        */
-
-        // User KYC submit + view (any logged-in user)
-        Route::post('/kyc', [UserVerificationController::class, 'store'])->name('kyc.store');
-        Route::get('/kyc',  [UserVerificationController::class, 'show'])->name('kyc.show');
-
-        // KYC admin (only Admin role by NAME)
-        Route::middleware('role:Admin')->prefix('kyc')->group(function () {
-            Route::get('/pending',       [UserVerificationController::class, 'pending'])->name('kyc.pending');
-            Route::post('/{id}/approve', [UserVerificationController::class, 'approve'])->name('kyc.approve');
-            Route::post('/{id}/reject',  [UserVerificationController::class, 'reject'])->name('kyc.reject');
-        });
-
-        /*
-        |--------------------------------------------------------------------------
-        | BANK ACCOUNTS (CUSTOMER) – KYC VERIFIED USERS
-        |--------------------------------------------------------------------------
-        */
-
-        Route::middleware('kyc_verified')->prefix('bank-accounts')->group(function () {
-            Route::get('/',        [UserBankAccountController::class, 'index'])->name('bank-accounts.index');
-            Route::post('/',       [UserBankAccountController::class, 'store'])->name('bank-accounts.store');
-            Route::get('/{id}',    [UserBankAccountController::class, 'show'])->name('bank-accounts.show');
-            Route::put('/{id}',    [UserBankAccountController::class, 'update'])->name('bank-accounts.update');
-            Route::delete('/{id}', [UserBankAccountController::class, 'destroy'])->name('bank-accounts.destroy');
-        });
-
-        // Verification by Admin/Agent (no KYC needed on THEIR account)
-        Route::middleware('role:Admin')->post(
-            '/bank-accounts/{id}/verify',
-            [UserBankAccountController::class, 'verify']
-        )->name('bank-accounts.verify');
-
-        /*
-        |--------------------------------------------------------------------------
-        | BENEFICIARIES
-        |--------------------------------------------------------------------------
-        */
-
-        Route::prefix('beneficiaries')->group(function () {
-            Route::get('/',        [BeneficiaryController::class, 'index'])->name('beneficiaries.index');
-            Route::post('/',       [BeneficiaryController::class, 'store'])->name('beneficiaries.store');
-            Route::get('/{id}',    [BeneficiaryController::class, 'show'])->name('beneficiaries.show');
-            Route::put('/{id}',    [BeneficiaryController::class, 'update'])->name('beneficiaries.update');
-            Route::delete('/{id}', [BeneficiaryController::class, 'destroy'])->name('beneficiaries.destroy');
-        });
-
-        /*
-        |--------------------------------------------------------------------------
-        | TRANSFERS
-        |--------------------------------------------------------------------------
-        */
-
-        Route::prefix('transfers')->group(function () {
-            Route::get('/',             [TransferController::class, 'index'])->name('transfers.index');
-            Route::get('/summary',      [TransferController::class, 'summary'])->name('transfers.summary'); // preview
-            Route::post('/',            [TransferController::class, 'store'])->name('transfers.store');
-            Route::get('/{id}',         [TransferController::class, 'show'])->name('transfers.show');
-            Route::get('/{id}/track',   [TransferController::class, 'track'])->name('transfers.track');
-            Route::post('/{id}/cancel', [TransferController::class, 'cancel'])->name('transfers.cancel');
-            Route::post('/{id}/refund', [TransferController::class, 'refund'])->name('transfers.refund');
-            Route::get('/{id}/events',  [TransferEventController::class, 'index'])->name('transfers.events');
-        });
-
-        /*
-        |--------------------------------------------------------------------------
-        | PAYMENTS
-        |--------------------------------------------------------------------------
-        */
-
-        Route::prefix('payments')->group(function () {
-            Route::post('/',             [PaymentController::class, 'store'])->name('payments.store');
-            Route::get('/{id}',          [PaymentController::class, 'show'])->name('payments.show');
-            Route::post('/{id}/capture', [PaymentController::class, 'capture'])->name('payments.capture');
-            Route::post('/{id}/refund',  [PaymentController::class, 'refund'])->name('payments.refund');
-        });
-
-        /*
-        |--------------------------------------------------------------------------
-        | TRANSFER FEES
-        |--------------------------------------------------------------------------
-        */
-
-        Route::prefix('transfer-fees')->group(function () {
-            Route::get('/',            [TransferFeeController::class, 'index'])->name('transfer-fees.index');
-            Route::post('/calculate',  [TransferFeeController::class, 'calculate'])->name('transfer-fees.calculate');
-            Route::get('/{id}',        [TransferFeeController::class, 'show'])->name('transfer-fees.show');
-
-            // Admin-only rules
-            Route::middleware('role:Admin')->group(function () {
-                Route::post('/',       [TransferFeeController::class, 'store'])->name('transfer-fees.store');
-                Route::put('/{id}',    [TransferFeeController::class, 'update'])->name('transfer-fees.update');
-                Route::delete('/{id}', [TransferFeeController::class, 'destroy'])->name('transfer-fees.destroy');
-            });
-        });
-
-        // Reports
-        Route::prefix('admin/reports')->group(function () {
-            Route::get('/', [ReportController::class, 'index'])->name('admin.reports');
-            Route::post('/', [ReportController::class, 'store'])->name('admin.reports.store');
-            Route::get('/{report}/download', [ReportController::class, 'download'])->name('admin.reports.download');
-            Route::delete('/{report}', [ReportController::class, 'destroy'])->name('admin.reports.destroy');
-        });
-
-        // ================== WEB PAGES (Blade) ==================
-
-        // Main dashboard
-        Route::get('/dashboard', function () {
-            return view('dashboard');
-        })->name('dashboard');
-
-        // Transfers pages
-        Route::prefix('app/transfers')->group(function () {
-            Route::get('/', function () {
-                return view('transfers.index');
-            })->name('app.transfers.index');
-
-            Route::get('/create', function () {
-                return view('transfers.create');
-            })->name('app.transfers.create');
-        });
-
-        // Beneficiaries page
-        Route::get('/app/beneficiaries', function () {
-            return view('beneficiaries.index');
-        })->name('app.beneficiaries.index');
-
-        // Bank accounts page
-        Route::get('/app/bank-accounts', function () {
-            return view('bank_accounts.index');
-        })->name('app.bank-accounts.index');
-
-        // KYC page
-        Route::get('/app/kyc', function () {
-            return view('kyc.show');
-        })->name('app.kyc.show');
-
-        // Notifications page
-        Route::get('/app/notifications', function () {
-            return view('notifications.index');
-        })->name('app.notifications.index');
-
-    });
+Route::middleware(['auth'])->group(function () {
+    // Auth logout
+    Route::post('/auth/logout', [AuthController::class, 'logout'])->name('auth.logout');
+    
+    // Transfer actions
+    Route::post('/transfers', [TransferController::class, 'store'])->name('transfers.store');
+    Route::get('/transfers/{transfer}', function (App\Models\Transfer $transfer) {
+        $transfer->load(['beneficiary.country', 'beneficiary.method', 'events', 'payment']);
+        return view('transfers.show', compact('transfer'));
+    })->name('transfers.show');
+    
+    // Beneficiary actions
+    Route::post('/beneficiaries', [BeneficiaryController::class, 'store'])->name('beneficiaries.store');
+    Route::delete('/beneficiaries/{id}', [BeneficiaryController::class, 'destroy'])->name('beneficiaries.destroy');
+    
+    // Bank Account actions
+    Route::post('/bank-accounts', [UserBankAccountController::class, 'store'])->name('bank-accounts.store');
+    Route::delete('/bank-accounts/{id}', [UserBankAccountController::class, 'destroy'])->name('bank-accounts.destroy');
+    
+    // Notification actions
+    Route::post('/notifications/{id}/read', [NotificationController::class, 'markAsRead'])->name('notifications.markAsRead');
+    Route::post('/notifications/read-all', [NotificationController::class, 'markAllAsRead'])->name('notifications.markAllRead');
+    
+    // Transfer cancel action
+    Route::post('/transfers/{transfer}/cancel', [TransferController::class, 'cancel'])->name('transfers.cancel');
+});

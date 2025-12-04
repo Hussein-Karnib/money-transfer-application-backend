@@ -99,7 +99,7 @@ class AgentHourController extends Controller
             }
         });
 
-        return redirect()->route('agents.hours.index', $agent)
+        return redirect()->route('portal.hours.index', $agent)
                          ->with('success', 'Working hours updated successfully.');
     }
 }
