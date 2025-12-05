@@ -79,13 +79,20 @@
                     <div class="mb-3">
                         <label class="form-label-modern">Transfer Speed</label>
                         <select class="form-select form-control-modern" name="speed">
-                            <option value="standard" {{ old('speed', $speed ?? 'standard') == 'standard' ? 'selected' : '' }}>
-                                Standard (24 hours)
+                            <option value="instant" {{ old('speed', $speed ?? '') == 'instant' ? 'selected' : '' }}>
+                                Instant (minutes, highest fee)
                             </option>
                             <option value="express" {{ old('speed', $speed ?? '') == 'express' ? 'selected' : '' }}>
-                                Express (1 hour)
+                                Express (2 hours)
+                            </option>
+                            <option value="same_day" {{ old('speed', $speed ?? '') == 'same_day' ? 'selected' : '' }}>
+                                Same Day (delivered today)
+                            </option>
+                            <option value="standard" {{ old('speed', $speed ?? 'standard') == 'standard' ? 'selected' : '' }}>
+                                Standard (next day, lowest fee)
                             </option>
                         </select>
+                        <small class="text-muted">Faster speeds increase the transfer fee automatically.</small>
                     </div>
 
                     <div class="mb-3">
@@ -155,9 +162,50 @@
                                 <div class="stat-label">Delivery Time</div>
                                 <div class="stat-value" style="font-size: 1.8rem;">{{ $deliveryTime }}</div>
                                 <small class="text-muted">Estimated: {{ $estimatedDelivery->format('M d, Y H:i') }}</small>
+                                @isset($speedProfile)
+                                    <div class="small text-muted mt-1">Speed profile: {{ $speedProfile['label'] }} ({{ $speedProfile['eta_text'] }})</div>
+                                @endisset
                             </div>
                         </div>
                     </div>
+
+                    @if(isset($transferOptions) && $transferOptions->count() > 0)
+                        <div class="mb-4">
+                            <h5 class="mb-3"><i class="bi bi-lightning-charge me-2"></i>Transfer services matching your filters</h5>
+                            <div class="row g-3">
+                                @foreach($transferOptions as $option)
+                                    <div class="col-md-6">
+                                        <div class="card h-100">
+                                            <div class="card-body">
+                                                <div class="d-flex justify-content-between align-items-start">
+                                                    <div>
+                                                        <span class="badge bg-primary">{{ $option['speed_label'] }}</span>
+                                                        <h6 class="mb-1">{{ $option['payout_label'] }}</h6>
+                                                        <small class="text-muted">{{ $option['method']->description ?? 'Fast and secure' }}</small>
+                                                    </div>
+                                                    <div class="text-end">
+                                                        <div class="fw-bold">{{ number_format($option['total'], 2) }} {{ $currencyFrom }}</div>
+                                                        <small class="text-muted">Total (incl. fees)</small>
+                                                    </div>
+                                                </div>
+                                                <div class="d-flex justify-content-between align-items-center mt-2">
+                                                    <span class="badge bg-light text-dark">Fee: {{ number_format($option['fee'], 2) }} {{ $currencyFrom }}</span>
+                                                    <span class="badge bg-success">Receives {{ number_format($option['recipient_amount'], 2) }} {{ $currencyTo }}</span>
+                                                </div>
+                                                <div class="d-flex justify-content-between align-items-center mt-2 text-muted small">
+                                                    <span><i class="bi bi-clock me-1"></i>{{ $option['delivery_text'] }}</span>
+                                                    <span><i class="bi bi-cash-stack me-1"></i>{{ $option['payout_label'] }}</span>
+                                                </div>
+                                                <div class="small text-muted mt-2">
+                                                    Rate: 1 {{ $currencyFrom }} = {{ number_format($option['exchange_rate'], 4) }} {{ $currencyTo }}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
+                    @endif
                     
                     <!-- Fee Details -->
                     @if($feeRule)
@@ -167,9 +215,14 @@
                             <p class="mb-0">Percentage: {{ number_format($feeRule->fee_percent ?? 0, 2) }}%</p>
                             <p class="mb-0 mt-2">
                                 <small>
-                                    <strong>Route:</strong> {{ $feeRule->countryFrom->name ?? 'N/A' }} → {{ $feeRule->countryTo->name ?? 'N/A' }}
+                                    <strong>Route:</strong> {{ $feeRule->countryFrom->name ?? 'N/A' }} -> {{ $feeRule->countryTo->name ?? 'N/A' }}
                                 </small>
                             </p>
+                            @isset($speedProfile)
+                                <p class="mb-0">
+                                    <small>Includes {{ number_format($speedProfile['fee_multiplier'], 2) }}x speed factor for {{ $speedProfile['label'] }} delivery.</small>
+                                </p>
+                            @endisset
                         </div>
                     @endif
                     
@@ -194,7 +247,7 @@
                                                     <span class="badge bg-success">Save {{ number_format($discount, 2) }} {{ $currencyFrom }}</span>
                                                 </div>
                                                 <small class="text-muted">
-                                                    @if($promo->discount_type === 'percentage')
+                                                    @if(in_array($promo->discount_type, ['percentage', 'percent']))
                                                         {{ number_format($promo->discount_value, 2) }}% off
                                                     @else
                                                         Fixed discount: {{ number_format($promo->discount_value, 2) }} {{ $currencyFrom }}
@@ -207,6 +260,44 @@
                                         </div>
                                     </div>
                                 @endforeach
+                            </div>
+                        </div>
+                    @endif
+                    
+                    <!-- Buyable Offers -->
+                    @php $selectedOffersList = $selectedOffers ?? []; @endphp
+                    @if(isset($purchaseOffers) && $purchaseOffers->count() > 0)
+                        <div class="mb-4">
+                            <h5 class="mb-3"><i class="bi bi-stars me-2"></i>Buyable Offers & Boosters</h5>
+                            <div class="row g-3">
+                                @foreach($purchaseOffers as $offer)
+                                    <div class="col-md-4">
+                                        <label class="card h-100 border-primary" style="cursor: pointer;">
+                                            <div class="card-body d-flex flex-column">
+                                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                                    <strong>{{ $offer['name'] }}</strong>
+                                                    <span class="badge bg-primary">{{ number_format($offer['price'], 2) }} {{ $currencyFrom }}</span>
+                                                </div>
+                                                <p class="text-muted small flex-grow-1 mb-2">{{ $offer['description'] }}</p>
+                                                <div class="d-flex justify-content-between align-items-center">
+                                                    <small class="text-success">Save up to {{ number_format($offer['savings'], 2) }} {{ $currencyFrom }}</small>
+                                                    <input type="checkbox" name="selected_offers[]" class="form-check-input mt-0 offer-checkbox"
+                                                           value="{{ $offer['name'] }}" {{ in_array($offer['name'], $selectedOffersList) ? 'checked' : '' }}>
+                                                </div>
+                                            </div>
+                                        </label>
+                                    </div>
+                                @endforeach
+                            </div>
+                            <div class="mt-3">
+                                <strong>Selected offers:</strong>
+                                <span id="selected-offers-summary">
+                                    @if(count($selectedOffersList) > 0)
+                                        {{ implode(', ', $selectedOffersList) }}
+                                    @else
+                                        None
+                                    @endif
+                                </span>
                             </div>
                         </div>
                     @endif
@@ -235,9 +326,23 @@
                     
                     <!-- Action Buttons -->
                     <div class="d-grid gap-2 mt-4">
-                        <a href="{{ route('app.transfers.create') }}" class="btn btn-primary-modern btn-modern">
-                            <i class="bi bi-send me-2"></i>Create Transfer with These Options
-                        </a>
+                        <form method="GET" action="{{ route('app.transfers.create') }}">
+                            <input type="hidden" name="amount" value="{{ $amount }}">
+                            <input type="hidden" name="currency_from" value="{{ $currencyFrom }}">
+                            <input type="hidden" name="currency_to" value="{{ $currencyTo }}">
+                            <input type="hidden" name="speed" value="{{ $speed }}">
+                            @if($methodId)
+                                <input type="hidden" name="transfer_method_id" value="{{ $methodId }}">
+                            @endif
+                            @if(isset($selectedOffers))
+                                @foreach($selectedOffers as $offerName)
+                                    <input type="hidden" name="selected_offers[]" value="{{ $offerName }}">
+                                @endforeach
+                            @endif
+                            <button type="submit" class="btn btn-primary-modern btn-modern w-100">
+                                <i class="bi bi-send me-2"></i>Create Transfer with These Options
+                            </button>
+                        </form>
                     </div>
                 </div>
             </div>
@@ -253,3 +358,19 @@
     </div>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const summaryEl = document.getElementById('selected-offers-summary');
+        function refreshSummary() {
+            const checked = Array.from(document.querySelectorAll('.offer-checkbox:checked')).map(cb => cb.value);
+            summaryEl.textContent = checked.length ? checked.join(', ') : 'None';
+        }
+        document.querySelectorAll('.offer-checkbox').forEach(cb => {
+            cb.addEventListener('change', refreshSummary);
+        });
+        refreshSummary();
+    });
+</script>
+@endpush
