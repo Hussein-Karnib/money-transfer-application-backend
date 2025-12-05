@@ -478,6 +478,12 @@
                                 </a>
                             </li>
                             <li class="nav-item">
+                                <a class="nav-link {{ request()->routeIs('offers.*') ? 'active' : '' }}" 
+                                   href="{{ route('offers.index') }}">
+                                    <i class="bi bi-stars me-1"></i> Offers
+                                </a>
+                            </li>
+                            <li class="nav-item">
                                 <a class="nav-link {{ request()->routeIs('app.notifications.*') ? 'active' : '' }}" 
                                    href="{{ route('app.notifications.index') }}">
                                     <i class="bi bi-bell me-1"></i> Notifications

@@ -19,7 +19,6 @@
             <div class="card-body">
                 <form method="POST" action="{{ route('transfers.search.post') }}" id="search-form">
                     @csrf
-                    <div id="offers-hidden-inputs"></div>
                     <div class="mb-3">
                         <label class="form-label-modern">Amount to Send</label>
                         <input type="number" step="0.01" class="form-control form-control-modern" 
@@ -135,10 +134,6 @@
                                 <div class="col-md-3">
                                     <small class="opacity-75">Fee</small>
                                     <h4 class="mb-0" id="fee-display">{{ number_format($fee, 2) }} {{ $currencyFrom }}</h4>
-                                    <small class="opacity-75" id="offers-breakdown" style="display: none;">
-                                        <span id="base-fee-text">Base: {{ number_format($fee - ($offersTotal ?? 0), 2) }}</span>
-                                        <span id="offers-fee-text"></span>
-                                    </small>
                                 </div>
                                 <div class="col-md-3">
                                     <small class="opacity-75">Total Cost</small>
@@ -269,44 +264,6 @@
                         </div>
                     @endif
                     
-                    <!-- Buyable Offers -->
-                    @php $selectedOffersList = $selectedOffers ?? []; @endphp
-                    @if(isset($purchaseOffers) && $purchaseOffers->count() > 0)
-                        <div class="mb-4">
-                            <h5 class="mb-3"><i class="bi bi-stars me-2"></i>Buyable Offers & Boosters</h5>
-                            <div class="row g-3">
-                                @foreach($purchaseOffers as $offer)
-                                    <div class="col-md-4">
-                                        <label class="card h-100 border-primary" style="cursor: pointer;">
-                                            <div class="card-body d-flex flex-column">
-                                                <div class="d-flex justify-content-between align-items-start mb-2">
-                                                    <strong>{{ $offer['name'] }}</strong>
-                                                    <span class="badge bg-primary">{{ number_format($offer['price'], 2) }} {{ $currencyFrom }}</span>
-                                                </div>
-                                                <p class="text-muted small flex-grow-1 mb-2">{{ $offer['description'] }}</p>
-                                                <div class="d-flex justify-content-between align-items-center">
-                                                    <small class="text-success">Save up to {{ number_format($offer['savings'], 2) }} {{ $currencyFrom }}</small>
-                                                    <input type="checkbox" name="selected_offers[]" class="form-check-input mt-0 offer-checkbox"
-                                                           value="{{ $offer['name'] }}" {{ in_array($offer['name'], $selectedOffersList) ? 'checked' : '' }}>
-                                                </div>
-                                            </div>
-                                        </label>
-                                    </div>
-                                @endforeach
-                            </div>
-                            <div class="mt-3">
-                                <strong>Selected offers:</strong>
-                                <span id="selected-offers-summary">
-                                    @if(count($selectedOffersList) > 0)
-                                        {{ implode(', ', $selectedOffersList) }}
-                                    @else
-                                        None
-                                    @endif
-                                </span>
-                            </div>
-                        </div>
-                    @endif
-                    
                     <!-- Available Methods -->
                     @if($availableMethods && $availableMethods->count() > 0)
                         <div class="mb-4">
@@ -339,11 +296,6 @@
                             @if($methodId)
                                 <input type="hidden" name="transfer_method_id" value="{{ $methodId }}">
                             @endif
-                            @if(isset($selectedOffers))
-                                @foreach($selectedOffers as $offerName)
-                                    <input type="hidden" name="selected_offers[]" value="{{ $offerName }}">
-                                @endforeach
-                            @endif
                             <button type="submit" class="btn btn-primary-modern btn-modern w-100">
                                 <i class="bi bi-send me-2"></i>Create Transfer with These Options
                             </button>
@@ -367,12 +319,8 @@
 @push('scripts')
 <script>
     document.addEventListener('DOMContentLoaded', () => {
-        const summaryEl = document.getElementById('selected-offers-summary');
         const feeDisplay = document.getElementById('fee-display');
         const totalCostDisplay = document.getElementById('total-cost-display');
-        const offersBreakdown = document.getElementById('offers-breakdown');
-        const baseFeeText = document.getElementById('base-fee-text');
-        const offersFeeText = document.getElementById('offers-fee-text');
         
         // Check if elements exist (only available after search)
         if (!feeDisplay || !totalCostDisplay) {
@@ -407,91 +355,7 @@
             const currencyFrom = 'USD';
         @endif
         
-        // Offer price definitions (matching server-side calculation)
-        const offerPrices = {
-            'Fee Shield Pass': Math.max(baseFee * 0.35, 2),
-            'Instant Upgrade': Math.max(baseFee * 0.45, 3),
-            'Rate Lock': Math.max(baseFee * 0.25, 1.5),
-            'Cash Pickup Booster': Math.max(baseFee * 0.3, 2),
-            'Mobile Wallet Bonus': Math.max(baseFee * 0.2, 1),
-        };
-        
-        function calculateOffersTotal() {
-            const checked = Array.from(document.querySelectorAll('.offer-checkbox:checked'));
-            let total = 0;
-            checked.forEach(cb => {
-                const offerName = cb.value;
-                if (offerPrices[offerName]) {
-                    total += offerPrices[offerName];
-                }
-            });
-            return Math.round(total * 100) / 100; // Round to 2 decimals
-        }
-        
-        function updateTotals() {
-            const checked = Array.from(document.querySelectorAll('.offer-checkbox:checked')).map(cb => cb.value);
-            if (summaryEl) {
-                summaryEl.textContent = checked.length ? checked.join(', ') : 'None';
-            }
-            
-            const offersTotal = calculateOffersTotal();
-            const newFee = baseFee + offersTotal;
-            const newTotal = baseTotal + offersTotal;
-            
-            // Update displays
-            if (feeDisplay) {
-                feeDisplay.textContent = newFee.toFixed(2) + ' ' + currencyFrom;
-            }
-            if (totalCostDisplay) {
-                totalCostDisplay.textContent = newTotal.toFixed(2) + ' ' + currencyFrom;
-            }
-            
-            // Update breakdown
-            if (offersBreakdown && offersTotal > 0) {
-                offersBreakdown.style.display = 'block';
-                if (baseFeeText) {
-                    baseFeeText.textContent = 'Base: ' + baseFee.toFixed(2);
-                }
-                if (offersFeeText) {
-                    offersFeeText.textContent = ' + Offers: ' + offersTotal.toFixed(2);
-                }
-            } else if (offersBreakdown) {
-                offersBreakdown.style.display = 'none';
-            }
-        }
-        
-        // Add event listeners to all offer checkboxes
-        document.querySelectorAll('.offer-checkbox').forEach(cb => {
-            cb.addEventListener('change', updateTotals);
-        });
-        
-        // Update hidden inputs in search form when offers change
-        function updateSearchFormOffers() {
-            const hiddenInputsContainer = document.getElementById('offers-hidden-inputs');
-            if (!hiddenInputsContainer) return;
-            
-            hiddenInputsContainer.innerHTML = '';
-            const checked = Array.from(document.querySelectorAll('.offer-checkbox:checked'));
-            checked.forEach(cb => {
-                const input = document.createElement('input');
-                input.type = 'hidden';
-                input.name = 'selected_offers[]';
-                input.value = cb.value;
-                hiddenInputsContainer.appendChild(input);
-            });
-        }
-        
-        // Update search form offers when checkboxes change
-        document.querySelectorAll('.offer-checkbox').forEach(cb => {
-            cb.addEventListener('change', () => {
-                updateTotals();
-                updateSearchFormOffers();
-            });
-        });
-        
-        // Initial update
-        updateTotals();
-        updateSearchFormOffers();
+        // Offers removed - users can purchase them separately from the Offers page
     });
 </script>
 @endpush

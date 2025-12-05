@@ -9,7 +9,6 @@
     $prefillCurrencyTo = $prefill['currency_to'] ?? request('currency_to', 'LBP');
     $prefillSpeed = $prefill['speed'] ?? request('speed', 'standard');
     $prefillMethodId = $prefill['transfer_method_id'] ?? request('transfer_method_id');
-    $prefillOffers = $prefill['selected_offers'] ?? request()->input('selected_offers', []);
 @endphp
 <div class="page-header">
     <div class="container-fluid px-4">
@@ -36,10 +35,52 @@
             <div class="card-body">
                 <form method="POST" action="{{ route('transfers.store') }}">
                     @csrf
-                    @if(!empty($prefillOffers))
-                        @foreach($prefillOffers as $offerName)
-                            <input type="hidden" name="selected_offers[]" value="{{ $offerName }}">
-                        @endforeach
+                    <!-- Purchased Offers Selection -->
+                    @if(isset($purchasedOffers) && $purchasedOffers->count() > 0)
+                        <div class="mb-4">
+                            <label class="form-label-modern">
+                                <i class="bi bi-stars me-2"></i>Use Your Purchased Offers (Optional)
+                            </label>
+                            <div class="row g-2">
+                                @foreach($purchasedOffers as $purchased)
+                                    <div class="col-md-6">
+                                        <div class="card border-primary" style="border-width: 2px;">
+                                            <div class="card-body p-3">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="checkbox" 
+                                                           name="selected_offers[]" 
+                                                           value="{{ $purchased->offer_name }}" 
+                                                           id="offer_{{ $purchased->id }}">
+                                                    <label class="form-check-label w-100" for="offer_{{ $purchased->id }}">
+                                                        <strong>{{ $purchased->offer_name }}</strong>
+                                                        <br>
+                                                        <small class="text-muted">{{ $purchased->description }}</small>
+                                                        @if($purchased->expires_at)
+                                                            <br>
+                                                            <small class="text-warning">
+                                                                <i class="bi bi-clock me-1"></i>
+                                                                Expires: {{ \Carbon\Carbon::parse($purchased->expires_at)->format('M d, Y') }}
+                                                            </small>
+                                                        @endif
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
+                            <small class="text-muted">
+                                <i class="bi bi-info-circle me-1"></i>
+                                Select offers you've purchased to apply them to this transfer. 
+                                <a href="{{ route('offers.index') }}">Buy more offers</a>
+                            </small>
+                        </div>
+                    @else
+                        <div class="alert alert-info mb-4">
+                            <i class="bi bi-info-circle me-2"></i>
+                            You don't have any active offers. 
+                            <a href="{{ route('offers.index') }}" class="alert-link">Purchase offers</a> to enhance your transfers!
+                        </div>
                     @endif
 
                     <div class="mb-3">
@@ -155,10 +196,10 @@
                     <i class="bi bi-tag me-1"></i>
                     Enter a promo code to get discounts on transfer fees.
                 </p>
-                @if(!empty($prefillOffers))
+                @if(isset($purchasedOffers) && $purchasedOffers->count() > 0)
                 <p class="text-muted small">
                     <i class="bi bi-stars me-1"></i>
-                    Selected offers: {{ implode(', ', $prefillOffers) }}
+                    You have {{ $purchasedOffers->count() }} active offer(s). Select them when creating your transfer.
                 </p>
                 @endif
             </div>

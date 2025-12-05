@@ -77,6 +77,26 @@
                             ${{ number_format($transfer->amount * ($agent->commission_rate ?? 0.01), 2) }}
                         </p>
                     </div>
+                    @if($type === 'cash_out')
+                        @php
+                            $agentBalance = $agent->balance ?? 100000;
+                            $hasSufficientBalance = $agentBalance >= $transfer->amount;
+                        @endphp
+                        <div class="mb-3">
+                            <small class="text-muted">Agent Balance</small>
+                            <p class="mb-0 h6 {{ $hasSufficientBalance ? 'text-success' : 'text-danger' }}">
+                                ${{ number_format($agentBalance, 2) }}
+                            </p>
+                            @if(!$hasSufficientBalance)
+                                <div class="alert alert-danger mt-2 mb-0">
+                                    <i class="bi bi-exclamation-triangle me-2"></i>
+                                    <strong>Insufficient Balance!</strong> You need ${{ number_format($transfer->amount, 2) }} but only have ${{ number_format($agentBalance, 2) }}. You cannot process this cash-out.
+                                </div>
+                            @else
+                                <small class="text-muted">After payout: ${{ number_format($agentBalance - $transfer->amount, 2) }}</small>
+                            @endif
+                        </div>
+                    @endif
                 @else
                     <div class="alert alert-info">
                         <i class="bi bi-info-circle me-2"></i>
@@ -179,11 +199,26 @@
                         </div>
                     @endif
 
-                    <div class="d-grid gap-2">
-                        <button type="submit" class="btn btn-{{ $type === 'cash_in' ? 'primary' : 'success' }}-modern btn-modern">
-                            <i class="bi bi-{{ $type === 'cash_in' ? 'check-circle' : 'cash' }} me-2"></i>
-                            Process {{ $type === 'cash_in' ? 'Cash-In' : 'Cash-Out' }}
-                        </button>
+                        <div class="d-grid gap-2">
+                            @php
+                                $canProcess = true;
+                                if ($type === 'cash_out' && $transfer) {
+                                    $agentBalance = $agent->balance ?? 100000;
+                                    $canProcess = $agentBalance >= $transfer->amount;
+                                }
+                            @endphp
+                            <button type="submit" 
+                                    class="btn btn-{{ $type === 'cash_in' ? 'primary' : 'success' }}-modern btn-modern"
+                                    {{ !$canProcess ? 'disabled' : '' }}>
+                                <i class="bi bi-{{ $type === 'cash_in' ? 'check-circle' : 'cash' }} me-2"></i>
+                                Process {{ $type === 'cash_in' ? 'Cash-In' : 'Cash-Out' }}
+                            </button>
+                            @if(!$canProcess)
+                                <small class="text-danger text-center">
+                                    <i class="bi bi-exclamation-circle me-1"></i>
+                                    Insufficient balance to process this cash-out
+                                </small>
+                            @endif
                         <a href="{{ route('portal.dashboard') }}" class="btn btn-outline-modern btn-modern">
                             <i class="bi bi-arrow-left me-2"></i>Cancel
                         </a>
