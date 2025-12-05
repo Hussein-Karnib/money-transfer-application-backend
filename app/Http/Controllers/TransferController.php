@@ -65,6 +65,14 @@ class TransferController extends Controller
     {
         // Only allow for API requests, web should use direct form submission
         if ($request->wantsJson() || $request->is('api/*')) {
+            $user = Auth::user();
+            if ($user && in_array($user->status, ['pending', 'inactive'])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Your account is pending approval. You cannot make transfers yet.',
+                ], 403);
+            }
+
             $validated = $request->validate([
                 'beneficiary_id'         => ['required', 'integer', 'exists:beneficiaries,id'],
                 'amount'                 => ['required', 'numeric', 'min:1'],
@@ -207,6 +215,17 @@ class TransferController extends Controller
     */
     public function store(Request $request)
     {
+        $user = Auth::user();
+        if ($user && in_array($user->status, ['pending', 'inactive'])) {
+            if ($request->wantsJson() || $request->is('api/*')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Your account is pending approval. You cannot make transfers yet.',
+                ], 403);
+            }
+            return back()->withErrors(['amount' => 'Your account is pending approval. You cannot make transfers yet.'])->withInput();
+        }
+
         $data = $request->validate([
             'beneficiary_id'         => ['required', 'integer', 'exists:beneficiaries,id'],
             'amount'                 => ['required', 'numeric', 'min:1'],
