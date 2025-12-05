@@ -32,6 +32,20 @@
                         @endif
                     </dd>
 
+                    <dt class="col-sm-3">Fees (incl. offers):</dt>
+                    <dd class="col-sm-9">{{ number_format($transfer->fee, 2) }} {{ $transfer->currency_from }}</dd>
+
+                    <dt class="col-sm-3">Total to Pay:</dt>
+                    <dd class="col-sm-9">{{ number_format($transfer->total_amount, 2) }} {{ $transfer->currency_from }}</dd>
+
+                    @php
+                        $offersEvent = $transfer->events?->first(function($event){ return str_contains($event->note ?? '', 'Offers'); });
+                    @endphp
+                    @if($offersEvent)
+                    <dt class="col-sm-3">Selected Offers:</dt>
+                    <dd class="col-sm-9">{{ $offersEvent->note }}</dd>
+                    @endif
+
                     <dt class="col-sm-3">Beneficiary:</dt>
                     <dd class="col-sm-9">
                         {{ $transfer->beneficiary->full_name ?? 'N/A' }}
@@ -66,16 +80,16 @@
                     <table class="table table-sm">
                         <thead>
                             <tr>
-                                <th>Event</th>
-                                <th>Description</th>
+                                <th>Status</th>
+                                <th>Note</th>
                                 <th>Date</th>
                             </tr>
                         </thead>
                         <tbody>
                             @foreach($transfer->events as $event)
                             <tr>
-                                <td>{{ $event->event_type ?? 'N/A' }}</td>
-                                <td>{{ $event->description ?? 'N/A' }}</td>
+                                <td>{{ ucfirst($event->status ?? 'N/A') }}</td>
+                                <td>{{ $event->note ?? 'N/A' }}</td>
                                 <td>{{ $event->created_at ? \Carbon\Carbon::parse($event->created_at)->format('M d, Y H:i') : 'N/A' }}</td>
                             </tr>
                             @endforeach

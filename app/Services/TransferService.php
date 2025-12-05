@@ -148,13 +148,17 @@ class TransferService
             // Priority: 1. User verification, 2. Default country (ID: 1)
             $senderCountryId = $this->getSenderCountryId($data['sender_id']);
 
-            // Calculate fee
-            $fee = $this->calculateFee(
-                $amount,
-                $senderCountryId,
-                $beneficiary->country_id,
-                $data['speed'] ?? 'standard'
-            );
+            // Calculate fee (allow override from caller)
+            if (array_key_exists('fee', $data)) {
+                $fee = (float) $data['fee'];
+            } else {
+                $fee = $this->calculateFee(
+                    $amount,
+                    $senderCountryId,
+                    $beneficiary->country_id,
+                    $data['speed'] ?? 'standard'
+                );
+            }
 
             // Handle optional promotion / discount
             $promotionId = $data['promotion_id'] ?? null;
@@ -170,8 +174,12 @@ class TransferService
                 throw new \Exception('Discount amount is too large for this transfer');
             }
 
-            // Calculate total amount (amount + fee - discount)
-            $totalAmount = max(0, $amount + $fee - $discountAmount);
+            // Calculate total amount (amount + fee - discount) with optional override
+            if (array_key_exists('total_amount', $data)) {
+                $totalAmount = (float) $data['total_amount'];
+            } else {
+                $totalAmount = max(0, $amount + $fee - $discountAmount);
+            }
 
             // Determine transfer method (explicit or beneficiary default)
             $transferMethodId = $data['transfer_method_id'] ?? $beneficiary->transfer_method_id ?? null;
