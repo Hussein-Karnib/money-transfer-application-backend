@@ -122,7 +122,7 @@ class AdminController extends Controller
     public function approvals()
     {
         $pendingAgents = \App\Models\Agent::where('status', 'pending')->with('user')->get();
-        $newUsers = \App\Models\User::orderBy('created_at', 'desc')->limit(10)->get();
+        $newUsers = \App\Models\User::where('status', 'pending')->orderBy('created_at', 'desc')->limit(10)->get();
         
         return view('admin.approvals', compact('pendingAgents', 'newUsers'));
     }

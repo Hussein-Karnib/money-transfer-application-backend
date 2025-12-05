@@ -336,6 +336,8 @@ class TransferController extends Controller
                     'amount'        => $amount,
                     'currency_from' => $data['currency_from'],
                     'currency_to'   => $data['currency_to'],
+                    'sender_name'   => $user->name,
+                    'sender_email'  => $user->email,
                 ]
             );
 
