@@ -79,6 +79,7 @@ class AgentController extends Controller
             'longitude' => ['nullable', 'numeric', 'between:-180,180'],
         ]);
 
+        $user = null;
         DB::transaction(function () use ($validated, &$user) {
             // 1. Get Agent role (try multiple name variations and id 2)
             $agentRole = \App\Models\Role::whereIn('name', ['agent', 'Agent', 'AGENT'])->first();
@@ -133,7 +134,14 @@ class AgentController extends Controller
             );
         });
 
-        return redirect()->route('home')->with('success', 'Registration successful! Your account is pending admin approval.');
+        // Auto-login the agent after registration
+        Auth::login($user);
+        
+        // Regenerate session after login for security
+        $request->session()->regenerate();
+        
+        // Redirect to agent portal dashboard
+        return redirect()->route('portal.dashboard')->with('success', 'Registration successful! Your account is pending admin approval. You can access your portal while waiting for approval.');
     }
 
     /**
@@ -154,6 +162,97 @@ class AgentController extends Controller
         // Return view for web requests
         return view('agents.show', compact('agent'));
     }
+
+    /**
+     * Public all-agents map (Leaflet) with simple search.
+     */
+    public function mapAll(Request $request)
+{
+    
+    $keyword = $request->input('q', '');
+    $keyword = trim($keyword);
+
+    
+    $query = Agent::with('user')
+        ->where('status', 'approved')
+        ->whereNotNull('latitude')
+        ->whereNotNull('longitude');
+
+    
+    if ($keyword != '') {
+
+        
+        $query = $query->where(function($q) use ($keyword) {
+
+            // by id if numberic
+            if (is_numeric($keyword)) {
+                $q->orWhere('id', (int)$keyword);
+            }
+
+            // storename or address
+            $q->orWhere('store_name', 'like', '%' . $keyword . '%')
+              ->orWhere('address', 'like', '%' . $keyword . '%');
+        });
+    }
+
+    // execute query
+    $list = $query->get();
+
+    
+    $mapData = [];
+    foreach ($list as $obj) {
+        $mapData[] = [
+            'id'          => $obj->id,
+            'store_name'  => $obj->store_name,
+            'address'     => $obj->address,
+            'lat'         => (float)$obj->latitude,
+            'lng'         => (float)$obj->longitude,
+            'profile_url' => route('agents.public_profile', $obj->id),
+        ];
+    }
+
+    
+    return view('agents.map_all', [
+        'list'    => $list,
+        'keyword' => $keyword,
+        'mapData' => $mapData,
+    ]);
+}
+
+    /**
+     * Render an internal Leaflet map for a single agent (structure kept simple, ready to extend later).
+     */
+    public function showMap(Agent $agent)
+    {
+        
+        $obj = $agent;
+
+        $missingCoords = ($obj->latitude == null || $obj->longitude == null);
+
+        if ($obj->status !== 'approved' || $missingCoords) {
+            abort(404, 'Agent location not available.');
+        }
+
+        // make sure user relation is loaded
+        if (!$obj->relationLoaded('user')) {
+            $obj->load('user');
+        }
+
+        
+        $info = [
+            'id'         => $obj->id,
+            'store_name' => $obj->store_name,
+            'address'    => $obj->address,
+            'latitude'   => (float) $obj->latitude,
+            'longitude'  => (float) $obj->longitude,
+        ];
+
+        
+        return view('agents.map_single', [
+            'agent' => $info,
+        ]);
+    }
+
 
     /**
      * Show form to edit agent details (Address, Store Name).

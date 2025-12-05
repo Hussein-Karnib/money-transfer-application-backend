@@ -40,8 +40,10 @@ class TransferSearchController extends Controller
             'country_to_id' => ['required', 'integer', 'exists:countries,id'],
             'currency_from' => ['required', 'string', 'size:3', 'exists:currencies,code'],
             'currency_to' => ['required', 'string', 'size:3', 'exists:currencies,code'],
-            'speed' => ['nullable', 'string', 'in:standard,express'],
+            'speed' => ['nullable', 'string', 'in:instant,same_day,express,standard'],
             'method_id' => ['nullable', 'integer', 'exists:transfer_methods,id'],
+            'selected_offers' => ['nullable', 'array'],
+            'selected_offers.*' => ['string', 'max:100'],
         ]);
 
         $amount = (float) $validated['amount'];
@@ -51,17 +53,20 @@ class TransferSearchController extends Controller
         $currencyTo = $validated['currency_to'];
         $speed = $validated['speed'] ?? 'standard';
         $methodId = $validated['method_id'] ?? null;
+        $speedProfile = $this->transferService->resolveSpeedProfile($speed);
+        $selectedOffers = $validated['selected_offers'] ?? [];
 
         // Get exchange rate
         $exchangeRate = $this->exchangeRateService->getRate($currencyFrom, $currencyTo);
         
-        if ($exchangeRate === null) {
+        if ($exchangeRate === null || $exchangeRate <= 0) {
             return redirect()->route('app.transfers.search')
-                ->with('error', 'Unable to fetch exchange rate for this currency pair. Please try again.');
+                ->with('error', 'Unable to fetch a valid exchange rate for this currency pair. Please try again.')
+                ->withInput();
         }
 
         // Calculate fee
-        $fee = $this->transferService->calculateFee($amount, $countryFromId, $countryToId);
+        $fee = $this->transferService->calculateFee($amount, $countryFromId, $countryToId, $speed);
         
         // Get fee details from database
         $feeRule = Transfer_Fee::where('country_from_id', $countryFromId)
@@ -76,9 +81,9 @@ class TransferSearchController extends Controller
         $recipientAmount = $amount * $exchangeRate;
         
         // Delivery time
-        $deliveryMinutes = $speed === 'express' ? 60 : 1440;
+        $deliveryMinutes = $speedProfile['minutes'];
         $estimatedDelivery = now()->addMinutes($deliveryMinutes);
-        $deliveryTime = $speed === 'express' ? '1 hour' : '24 hours';
+        $deliveryTime = "{$speedProfile['label']} ({$speedProfile['eta_text']})";
 
         // Get available promotions for this destination from database
         $promotions = Promotion::where('active', true)
@@ -105,7 +110,7 @@ class TransferSearchController extends Controller
         // Calculate potential discounts
         $promotionsWithDiscount = $promotions->map(function($promo) use ($fee) {
             $discount = 0;
-            if ($promo->discount_type === 'percentage') {
+            if (in_array($promo->discount_type, ['percentage', 'percent'])) {
                 $discount = ($fee * $promo->discount_value) / 100;
             } elseif ($promo->discount_type === 'fixed') {
                 $discount = $promo->discount_value;
@@ -141,6 +146,63 @@ class TransferSearchController extends Controller
         $countryFrom = Country::find($countryFromId);
         $countryTo = Country::find($countryToId);
 
+        $transferOptions = $availableMethods->map(function($method) use ($speedProfile, $fee, $amount, $exchangeRate, $currencyFrom, $currencyTo, $deliveryTime) {
+            $methodName = strtolower($method->name);
+            $methodFactor = match ($methodName) {
+                'cash pickup' => 1.05,
+                'mobile wallet' => 0.95,
+                default => 1.0,
+            };
+
+            $optionFee = round($fee * $methodFactor, 2);
+            $optionTotal = round($amount + $optionFee, 2);
+            $recipient = round($amount * $exchangeRate, 2);
+
+            return [
+                'method'            => $method,
+                'fee'               => $optionFee,
+                'total'             => $optionTotal,
+                'recipient_amount'  => $recipient,
+                'delivery_text'     => $deliveryTime,
+                'speed_label'       => $speedProfile['label'],
+                'exchange_rate'     => $exchangeRate,
+                'payout_label'      => $method->name,
+            ];
+        });
+
+        $purchaseOffers = collect([
+            [
+                'name'        => 'Fee Shield Pass',
+                'description' => 'Waive most of the fees on this transfer - best when sending larger amounts.',
+                'price'       => round(max($fee * 0.35, 2), 2),
+                'savings'     => round(min($fee, $fee * 0.6), 2),
+            ],
+            [
+                'name'        => 'Instant Upgrade',
+                'description' => 'Jump the queue and process as an instant transfer.',
+                'price'       => round(max($fee * 0.45, 3), 2),
+                'savings'     => round(min($fee * 0.4, $fee), 2),
+            ],
+            [
+                'name'        => 'Rate Lock',
+                'description' => "Lock today's exchange rate for the next 24 hours.",
+                'price'       => round(max($fee * 0.25, 1.5), 2),
+                'savings'     => round($amount * max($exchangeRate * 0.005, 0.01), 2),
+            ],
+            [
+                'name'        => 'Cash Pickup Booster',
+                'description' => 'Guarantee fast cash availability at partner agents.',
+                'price'       => round(max($fee * 0.3, 2), 2),
+                'savings'     => round(min($fee * 0.3, $fee), 2),
+            ],
+            [
+                'name'        => 'Mobile Wallet Bonus',
+                'description' => 'Add a small cashback to the recipient mobile wallet.',
+                'price'       => round(max($fee * 0.2, 1), 2),
+                'savings'     => round(min($fee * 0.25, $fee), 2),
+            ],
+        ]);
+
         return view('transfers.search', compact(
             'countries',
             'currencies',
@@ -163,8 +225,11 @@ class TransferSearchController extends Controller
             'promotionsWithDiscount',
             'availableMethods',
             'countryFrom',
-            'countryTo'
+            'countryTo',
+            'transferOptions',
+            'purchaseOffers',
+            'speedProfile',
+            'selectedOffers'
         ));
     }
 }
-

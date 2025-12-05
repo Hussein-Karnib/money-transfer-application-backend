@@ -227,6 +227,14 @@ class BeneficiaryController extends Controller
         'payout_details'     => $payoutDetails,
     ]);
 
+    AuditLogController::logSystemAction(
+        $userId,
+        'create_beneficiary',
+        'beneficiaries',
+        $beneficiary->id,
+        ['country_id' => $data['country_id']]
+    );
+
     // Check if this is a web request
     if ($request->wantsJson() || $request->is('api/*')) {
         return response()->json([

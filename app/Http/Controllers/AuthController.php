@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
-
+use App\Http\Controllers\AuditLogController;
 
 class AuthController extends Controller
 {
@@ -159,6 +159,14 @@ class AuthController extends Controller
             $user->tokens()->delete();
             $token = $user->createToken('mobile')->plainTextToken;
 
+            AuditLogController::logSystemAction(
+                $user->id,
+                'login',
+                'users',
+                $user->id,
+                ['ip' => $request->ip(), 'type' => 'api']
+            );
+
             return response()->json([
                 'user'  => $user,
                 'token' => $token,
@@ -178,6 +186,7 @@ class AuthController extends Controller
             $request->session()->regenerate();
             // Redirect based on user role
             $user = Auth::user();
+            $user->load('role');
             
             if ($user->role) {
                 $roleName = strtolower($user->role->name);
@@ -196,8 +205,16 @@ class AuthController extends Controller
                 }
             }
             
-            // Regular users go to regular dashboard
-            return redirect()->intended(route('dashboard'))->with('success', 'Welcome back!');
+            // Regular users (customer/user) go to user dashboard
+            AuditLogController::logSystemAction(
+                $user->id,
+                'login',
+                'users',
+                $user->id,
+                ['ip' => $request->ip(), 'type' => 'web']
+            );
+
+            return redirect()->route('dashboard')->with('success', 'Welcome back!');
         }
 
         return back()->withErrors([
@@ -214,13 +231,32 @@ class AuthController extends Controller
     {
         // Check if this is an API request
         if ($request->wantsJson() || $request->is('api/*')) {
-            $request->user()->currentAccessToken()->delete();
+            $user = $request->user();
+            if ($user) {
+                AuditLogController::logSystemAction(
+                    $user->id,
+                    'logout',
+                    'users',
+                    $user->id,
+                    ['ip' => $request->ip(), 'type' => 'api']
+                );
+                $user->currentAccessToken()->delete();
+            }
             return response()->json([
                 'message' => 'Logged out.',
             ]);
         }
 
         // Web logout
+        if (Auth::check()) {
+            AuditLogController::logSystemAction(
+                Auth::id(),
+                'logout',
+                'users',
+                Auth::id(),
+                ['ip' => $request->ip(), 'type' => 'web']
+            );
+        }
         Auth::logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
@@ -258,14 +294,12 @@ class AuthController extends Controller
                 'email'         => $data['email'] ?? null,
                 'password'      => null, 
                 'role_id'       => 3,    
-                'status'        => 'active',
                 'avatar_url'    => $data['avatar'] ?? null,
             ]);
         } else {
             $user->update([
                 'name'          => $data['name'],
                 'avatar_url'    => $data['avatar'] ?? $user->avatar_url,
-                'status'        => $user->status ?: 'active',
             ]);
         }
         

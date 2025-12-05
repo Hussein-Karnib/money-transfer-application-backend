@@ -2,8 +2,8 @@
 
 namespace Database\Seeders;
 
+use App\Models\Country;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\DB;
 
 class CountrySeeder extends Seeder
 {
@@ -36,6 +36,17 @@ class CountrySeeder extends Seeder
             ['iso2' => 'KR', 'name' => 'South Korea'],
         ];
 
-        DB::table('countries')->insert($countries);
+        $timestamp = now();
+
+        $countries = array_map(fn (array $country) => $country + [
+            'created_at' => $timestamp,
+            'updated_at' => $timestamp,
+        ], $countries);
+
+        Country::upsert(
+            $countries,
+            ['iso2'],
+            ['name', 'updated_at']
+        );
     }
 }

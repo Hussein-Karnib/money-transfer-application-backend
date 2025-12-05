@@ -18,9 +18,15 @@ use App\Http\Controllers\UserVerificationController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\AgentTransactionController;
+use Illuminate\Support\Facades\Storage;
 
 Route::get('/auth/{provider}/callback', [SocialAuthController::class, 'callback'])
     ->name('social.callback');
+
+// Google OAuth redirect
+Route::get('/auth/google/redirect', function () {
+    return app(SocialAuthController::class)->redirect('google');
+})->name('google.redirect');
 
 // ========================================================================
 // 1. PUBLIC ROUTES (No Login Required)
@@ -42,8 +48,16 @@ Route::get('/agents', function (Request $request) {
     return view('agents.map', compact('agents'));
 })->name('agents.map');
 
+// All-agents Leaflet map with search
+Route::get('/agents/map-all', [AgentController::class, 'mapAll'])->name('agents.map_all');
+
+// Dedicated internal Leaflet map for a single agent (future-friendly for collections)
+Route::get('/agents/{agent}/map', [AgentController::class, 'showMap'])->name('agents.map.single');
+
 // Agent registration form view
-Route::get('/partner/register', function () {
+Route::get('/partner/register', function (Request $request) {
+    // Ensure session is started to generate CSRF token
+    $request->session()->regenerateToken();
     return view('agents.create');
 })->name('agents.register');
 
@@ -243,10 +257,10 @@ Route::middleware(['auth', 'role:agent'])->prefix('portal')->name('portal.')->gr
         $query = $agent->transactions();
 
         // Filter by date range if provided
-        if ($request->has('from')) {
+        if ($request->filled('from')) {
             $query->whereDate('processed_at', '>=', $request->from);
         }
-        if ($request->has('to')) {
+        if ($request->filled('to')) {
             $query->whereDate('processed_at', '<=', $request->to);
         }
 
@@ -331,6 +345,7 @@ Route::middleware(['auth'])->group(function () {
     // Dashboard - Load data from database (redirect based on role)
     Route::get('/dashboard', function (Request $request) {
         $user = Auth::user();
+        $user->load('role');
         
         // Redirect admins to admin dashboard
         if ($user->role && strtolower($user->role->name) === 'admin') {
@@ -345,7 +360,7 @@ Route::middleware(['auth'])->group(function () {
             }
         }
         
-        // Regular user dashboard
+        // Regular user dashboard (customer/user)
         // Get transfers from database
         $transfers = App\Models\Transfer::where('sender_id', $user->id)
             ->with(['beneficiary.country', 'beneficiary.method', 'events', 'payment'])
@@ -355,11 +370,15 @@ Route::middleware(['auth'])->group(function () {
         
         $totalTransfers = App\Models\Transfer::where('sender_id', $user->id)->count();
         $lastTransferStatus = $transfers->first() ? $transfers->first()->status : 'N/A';
+        $accountBalance = $user->balance ?? 0;
+        $balanceCurrency = $user->balance_currency ?? ($transfers->first()?->currency_from ?? 'USD');
+        $accountStatus = $user->status ?? 'pending';
+        $accountName = $user->name ?? 'User';
         
         // Get unread notifications count from database using Laravel's Notifiable trait
         $unreadCount = $user->unreadNotifications()->count();
         
-        return view('dashboard', compact('transfers', 'totalTransfers', 'lastTransferStatus', 'unreadCount'));
+        return view('dashboard', compact('transfers', 'totalTransfers', 'lastTransferStatus', 'unreadCount', 'accountBalance', 'balanceCurrency', 'accountStatus', 'accountName'));
     })->name('dashboard');
     
     // App routes with 'app.' prefix for views
@@ -372,7 +391,7 @@ Route::middleware(['auth'])->group(function () {
             $query = App\Models\Transfer::where('sender_id', $user->id)
                 ->with(['beneficiary.country', 'beneficiary.method', 'events', 'payment']);
             
-            if ($request->has('status')) {
+            if ($request->has('status') && $request->status !== null && $request->status !== '') {
                 $query->where('status', $request->status);
             }
             
@@ -382,7 +401,7 @@ Route::middleware(['auth'])->group(function () {
         })->name('transfers.index');
         
         // Create transfer view
-        Route::get('/transfers/create', function () {
+        Route::get('/transfers/create', function (Request $request) {
             // Load beneficiaries and currencies for the form from database
             $user = Auth::user();
             $beneficiaries = App\Models\Beneficiary::where('user_id', $user->id)
@@ -390,8 +409,17 @@ Route::middleware(['auth'])->group(function () {
                 ->orderBy('full_name')
                 ->get();
             $currencies = App\Models\Currency::orderBy('code')->get();
+            $methods = App\Models\Transfer_Method::all();
+            $prefill = [
+                'amount' => $request->input('amount'),
+                'currency_from' => $request->input('currency_from'),
+                'currency_to' => $request->input('currency_to'),
+                'speed' => $request->input('speed'),
+                'transfer_method_id' => $request->input('transfer_method_id'),
+                'selected_offers' => $request->input('selected_offers', []),
+            ];
             
-            return view('transfers.create', compact('beneficiaries', 'currencies'));
+            return view('transfers.create', compact('beneficiaries', 'currencies', 'methods', 'prefill'));
         })->name('transfers.create');
         
         // Search transfer services
@@ -438,13 +466,39 @@ Route::middleware(['auth'])->group(function () {
 Route::middleware(['auth'])->group(function () {
     // Auth logout
     Route::post('/auth/logout', [AuthController::class, 'logout'])->name('auth.logout');
+    Route::get('/profile', function (Request $request) {
+        $user = Auth::user();
+        $primaryAccount = $user->bankAccounts()->first();
+        return view('profile', compact('user', 'primaryAccount'));
+    })->name('profile.show');
+    Route::post('/profile', function (Request $request) {
+        $user = Auth::user();
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'phone' => ['nullable', 'string', 'max:50'],
+            'avatar' => ['nullable', 'image', 'max:2048'],
+        ]);
+
+        $payload = [
+            'name' => $data['name'],
+            'phone' => $data['phone'] ?? $user->phone,
+        ];
+
+        if ($request->hasFile('avatar')) {
+            $path = $request->file('avatar')->store('avatars', 'public');
+            $payload['avatar_url'] = Storage::url($path);
+        }
+
+        $user->update($payload);
+        return redirect()->route('profile.show')->with('success', 'Profile updated.');
+    })->name('profile.update');
     
     // Transfer actions
     Route::get('/transfers/summary', [TransferController::class, 'summary'])->name('transfers.summary');
     Route::post('/transfers/search', [TransferSearchController::class, 'search'])->name('transfers.search.post');
     Route::post('/transfers', [TransferController::class, 'store'])->name('transfers.store');
     Route::get('/transfers/{transfer}', function (App\Models\Transfer $transfer) {
-        $transfer->load(['beneficiary.country', 'beneficiary.method', 'events', 'payment']);
+        $transfer->load(['beneficiary.country', 'beneficiary.method', 'events', 'payment', 'transferMethod']);
         return view('transfers.show', compact('transfer'));
     })->name('transfers.show');
     

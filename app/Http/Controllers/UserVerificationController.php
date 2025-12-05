@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Auth;
 use App\Models\UserVerification;
 use App\Http\Controllers\AuditLogController;
 
@@ -85,6 +86,14 @@ public function show(Request $request)
         'status'        => 'pending',
     ]);
 
+    AuditLogController::logSystemAction(
+        $user->id,
+        'submit_kyc',
+        'user_verifications',
+        $verification->id,
+        ['id_type' => $verification->id_type]
+    );
+
     return response()->json([
         'success' => true,
         'message' => 'KYC submitted successfully.',
@@ -128,6 +137,14 @@ public function show(Request $request)
             'verified_at' => now(),
         ]);
 
+        AuditLogController::logSystemAction(
+            Auth::id(),
+            'approve_kyc',
+            'user_verifications',
+            $verification->id,
+            ['user_id' => $verification->user_id]
+        );
+
         return response()->json([
             'message'      => 'KYC approved',
             'verification' => $verification,
@@ -145,6 +162,14 @@ public function show(Request $request)
             'status'      => 'rejected',
             'verified_at' => null,
         ]);
+
+        AuditLogController::logSystemAction(
+            Auth::id(),
+            'reject_kyc',
+            'user_verifications',
+            $verification->id,
+            ['user_id' => $verification->user_id]
+        );
 
         return response()->json([
             'message'      => 'KYC rejected',
