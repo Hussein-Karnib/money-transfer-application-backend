@@ -13,6 +13,8 @@ use App\Services\ExchangeRateService;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
+use App\Mail\TransactionCompletedMail;
 
 class TransferService
 {
@@ -272,6 +274,21 @@ class TransferService
             'status' => $status,
             'completed_at' => in_array($status, ['completed', 'failed', 'refunded']) ? now() : null,
         ]);
+
+        // Send completion email only on first completion
+        if ($status === 'completed' && $currentStatus !== 'completed') {
+            $transfer->loadMissing(['sender', 'beneficiary', 'currencyFrom', 'currencyTo']);
+
+            if ($transfer->sender && $transfer->sender->email) {
+                Mail::to($transfer->sender->email)->send(new TransactionCompletedMail($transfer));
+            }
+
+            $beneficiaryDetails = $transfer->beneficiary?->payout_details ?? [];
+            $beneficiaryEmail = is_array($beneficiaryDetails) ? ($beneficiaryDetails['email'] ?? null) : null;
+            if ($beneficiaryEmail) {
+                Mail::to($beneficiaryEmail)->send(new TransactionCompletedMail($transfer));
+            }
+        }
 
         // Create event
         $this->createEvent($transferId, $status, $note, $actorType, $actorId);

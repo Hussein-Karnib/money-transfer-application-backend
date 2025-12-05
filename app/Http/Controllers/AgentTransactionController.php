@@ -8,6 +8,8 @@ use App\Models\Transfer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Mail;
+use App\Mail\TransactionCompletedMail;
 
 class AgentTransactionController extends Controller
 {
@@ -64,6 +66,7 @@ class AgentTransactionController extends Controller
 
         // Find the transfer
         $transfer = Transfer::where('reference', $validated['transfer_reference'])->firstOrFail();
+        $wasCompleted = $transfer->status === 'completed';
 
         // LOGIC CHECKS
         if ($validated['type'] === 'cash_out') {
@@ -103,6 +106,18 @@ class AgentTransactionController extends Controller
             
             // Optional: Create an Audit Log here (via helper/observer)
         });
+
+        $transfer->refresh()->loadMissing(['sender', 'beneficiary', 'currencyFrom', 'currencyTo']);
+
+        if (! $wasCompleted && $transfer->status === 'completed' && $transfer->sender?->email) {
+            Mail::to($transfer->sender->email)->send(new TransactionCompletedMail($transfer));
+        }
+
+        $beneficiaryDetails = $transfer->beneficiary?->payout_details ?? [];
+        $beneficiaryEmail = is_array($beneficiaryDetails) ? ($beneficiaryDetails['email'] ?? null) : null;
+        if (! $wasCompleted && $transfer->status === 'completed' && $beneficiaryEmail) {
+            Mail::to($beneficiaryEmail)->send(new TransactionCompletedMail($transfer));
+        }
 
         return redirect()->route('portal.transactions.index')
             ->with('success', 'Transaction processed successfully. Commission earned: ' . number_format($commission, 2));
