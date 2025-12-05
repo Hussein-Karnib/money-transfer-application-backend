@@ -6,7 +6,7 @@
         <div class="card shadow-sm">
             <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
                 <h4 class="mb-0">Working Hours - {{ $agent->store_name }}</h4>
-                <a href="{{ route('portal.hours.edit', $agent) }}" class="btn btn-light btn-sm">
+                <a href="{{ route('portal.hours.edit') }}" class="btn btn-light btn-sm">
                     Edit Hours
                 </a>
             </div>
@@ -64,10 +64,10 @@
                 </div>
 
                 <div class="mt-4">
-                    <a href="{{ route('portal.hours.edit', $agent) }}" class="btn btn-primary">
+                    <a href="{{ route('portal.hours.edit') }}" class="btn btn-primary">
                         Edit Working Hours
                     </a>
-                    <a href="{{ route('dashboard') }}" class="btn btn-outline-secondary">
+                    <a href="{{ route('portal.dashboard') }}" class="btn btn-outline-secondary">
                         Back to Dashboard
                     </a>
                 </div>

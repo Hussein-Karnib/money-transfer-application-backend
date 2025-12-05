@@ -32,9 +32,18 @@ class AgentTransactionController extends Controller
     /**
      * Show the form to process a generic transaction (Cash In or Out).
      */
-    public function create(Agent $agent)
+    public function create(Agent $agent, Request $request)
     {
-        return view('portal.transactions.create', compact('agent'));
+        // Get transfer reference if provided
+        $transferReference = $request->get('reference');
+        $type = $request->get('type', 'cash_in'); // cash_in or cash_out
+        
+        $transfer = null;
+        if ($transferReference) {
+            $transfer = Transfer::where('reference', $transferReference)->first();
+        }
+        
+        return view('portal.transactions.create', compact('agent', 'transfer', 'type'));
     }
 
     /**
@@ -95,7 +104,7 @@ class AgentTransactionController extends Controller
             // Optional: Create an Audit Log here (via helper/observer)
         });
 
-        return redirect()->route('portal.transactions.index', $agent)
+        return redirect()->route('portal.transactions.index')
             ->with('success', 'Transaction processed successfully. Commission earned: ' . number_format($commission, 2));
     }
 

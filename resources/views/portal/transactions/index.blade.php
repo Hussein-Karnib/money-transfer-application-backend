@@ -1,14 +1,14 @@
 @extends('layouts.app')
 
-@section('title', 'Commission Report')
+@section('title', 'Transaction History')
 
 @section('content')
 <div class="page-header">
     <div class="container-fluid px-4">
         <div class="d-flex justify-content-between align-items-center">
             <div>
-                <h1><i class="bi bi-graph-up me-2"></i>Commission Report</h1>
-                <p>{{ $agent->store_name }} - Track your earnings</p>
+                <h1><i class="bi bi-list-ul me-2"></i>Transaction History</h1>
+                <p>View all your processed cash-in and cash-out transactions</p>
             </div>
             <a href="{{ route('portal.dashboard') }}" class="btn btn-outline-modern btn-modern">
                 <i class="bi bi-arrow-left me-2"></i>Back to Dashboard
@@ -17,75 +17,19 @@
     </div>
 </div>
 
-<!-- Summary Cards -->
-<div class="row g-4 mb-4">
-    <div class="col-md-3">
-        <div class="stat-card primary">
-            <div class="stat-label">Total Commission</div>
-            <div class="stat-value">${{ number_format($totalCommission, 2) }}</div>
+@if($transactions->count() > 0)
+    <div class="card-modern">
+        <div class="card-header">
+            <i class="bi bi-clock-history me-2"></i>All Transactions
         </div>
-    </div>
-    <div class="col-md-3">
-        <div class="stat-card success">
-            <div class="stat-label">This Month</div>
-            <div class="stat-value">${{ number_format($monthlyCommission, 2) }}</div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="stat-card warning">
-            <div class="stat-label">Today</div>
-            <div class="stat-value">${{ number_format($todayCommission, 2) }}</div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="stat-card danger">
-            <div class="stat-label">Filtered Total</div>
-            <div class="stat-value">${{ number_format($filteredCommission, 2) }}</div>
-        </div>
-    </div>
-</div>
-
-<!-- Filter Form -->
-<div class="card-modern mb-4">
-    <div class="card-header">
-        <i class="bi bi-funnel me-2"></i>Filter Transactions
-    </div>
-    <div class="card-body">
-        <form method="GET" action="{{ route('portal.commissions') }}" class="row g-3">
-            <div class="col-md-4">
-                <label class="form-label-modern">From Date</label>
-                <input type="date" class="form-control form-control-modern" name="from" 
-                       value="{{ request('from') }}">
-            </div>
-            <div class="col-md-4">
-                <label class="form-label-modern">To Date</label>
-                <input type="date" class="form-control form-control-modern" name="to" 
-                       value="{{ request('to') }}">
-            </div>
-            <div class="col-md-4 d-flex align-items-end">
-                <button type="submit" class="btn btn-primary-modern btn-modern me-2">Filter</button>
-                        <a href="{{ route('portal.commissions') }}" class="btn btn-outline-modern btn-modern">
-                            Clear
-                        </a>
-            </div>
-        </form>
-    </div>
-</div>
-
-<!-- Transactions Table -->
-<div class="card-modern">
-    <div class="card-header">
-        <i class="bi bi-list-ul me-2"></i>Transaction History
-    </div>
-    <div class="card-body">
-        @if($transactions->count() > 0)
+        <div class="card-body">
             <div class="table-responsive">
                 <table class="table table-modern">
                     <thead>
                         <tr>
                             <th>ID</th>
-                            <th>Transfer Ref</th>
                             <th>Type</th>
+                            <th>Transfer Reference</th>
                             <th>Amount</th>
                             <th>Commission</th>
                             <th>Processed At</th>
@@ -98,16 +42,16 @@
                             <tr>
                                 <td><strong>#{{ $transaction->id }}</strong></td>
                                 <td>
+                                    <span class="badge bg-{{ $transaction->type === 'cash_in' ? 'primary' : 'success' }} badge-modern">
+                                        {{ $transaction->type === 'cash_in' ? 'Cash-In' : 'Cash-Out' }}
+                                    </span>
+                                </td>
+                                <td>
                                     @if($transaction->transfer)
                                         <code>{{ $transaction->transfer->reference }}</code>
                                     @else
                                         <span class="text-muted">N/A</span>
                                     @endif
-                                </td>
-                                <td>
-                                    <span class="badge bg-{{ $transaction->type === 'cash_in' ? 'primary' : 'success' }} badge-modern">
-                                        {{ $transaction->type === 'cash_in' ? 'Cash-In' : 'Cash-Out' }}
-                                    </span>
                                 </td>
                                 <td>
                                     @if($transaction->transfer)
@@ -155,30 +99,19 @@
                     {{ $transactions->links() }}
                 </div>
             @endif
-        @else
-            <div class="text-center py-5">
-                <i class="bi bi-inbox" style="font-size: 4rem; color: #cbd5e0;"></i>
-                <p class="text-muted mt-3">No commission transactions found for the selected period.</p>
-            </div>
-        @endif
+        </div>
     </div>
-</div>
+@else
+    <div class="card-modern">
+        <div class="card-body text-center py-5">
+            <i class="bi bi-inbox" style="font-size: 4rem; color: #cbd5e0;"></i>
+            <h4 class="mt-3 mb-2">No Transactions Yet</h4>
+            <p class="text-muted">You haven't processed any cash-in or cash-out transactions yet.</p>
+            <a href="{{ route('portal.dashboard') }}" class="btn btn-primary-modern btn-modern mt-3">
+                <i class="bi bi-arrow-left me-2"></i>Go to Dashboard
+            </a>
+        </div>
+    </div>
+@endif
 @endsection
 
-@section('scripts')
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const toInput = document.querySelector('input[name="to"]');
-        if (toInput) {
-            toInput.max = new Date().toISOString().split('T')[0];
-        }
-
-        const fromInput = document.querySelector('input[name="from"]');
-        if (toInput && fromInput) {
-            toInput.addEventListener('change', function() {
-                fromInput.max = this.value;
-            });
-        }
-    });
-</script>
-@endsection
