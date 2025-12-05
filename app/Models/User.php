@@ -19,11 +19,16 @@ class User extends Authenticatable
         'role_id',
         'status',
         'avatar_url',
-        'email_verified_at',
+        'balance',
+        'balance_currency',
     ];
 
     protected $hidden = [
         'password',
+    ];
+
+    protected $casts = [
+        'balance' => 'decimal:2',
     ];
 
     public function role()

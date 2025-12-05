@@ -12,6 +12,7 @@ class Transfer extends Model
     protected $fillable = [
         'sender_id',
         'beneficiary_id',
+        'transfer_method_id',
         'amount',
         'currency_from',
         'currency_to',
@@ -34,6 +35,10 @@ class Transfer extends Model
         'estimated_delivery_at' => 'datetime',
     ];
 
+    protected $appends = [
+        'amount_received',
+    ];
+
     public function sender()
     {
         return $this->belongsTo(User::class, 'sender_id');
@@ -42,6 +47,11 @@ class Transfer extends Model
     public function beneficiary()
     {
         return $this->belongsTo(Beneficiary::class);
+    }
+
+    public function transferMethod()
+    {
+        return $this->belongsTo(Transfer_Method::class, 'transfer_method_id');
     }
 
     public function events()
@@ -73,6 +83,15 @@ class Transfer extends Model
     {
         return $this->hasOne(Exchange_Rate::class, 'currency_from', 'currency_from')
             ->whereColumn('exchange_rates.currency_to', 'transfers.currency_to');
+    }
+
+    public function getAmountReceivedAttribute(): float
+    {
+        if (!$this->amount || !$this->exchange_rate) {
+            return 0.0;
+        }
+
+        return round($this->amount * $this->exchange_rate, 2);
     }
 
     /**

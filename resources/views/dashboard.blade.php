@@ -22,9 +22,22 @@
     </div>
 
     <div class="col-md-4">
-        <div class="stat-card {{ $lastTransferStatus === 'completed' ? 'success' : ($lastTransferStatus === 'pending' ? 'warning' : 'danger') }}">
+        @php
+            $statusClassMap = [
+                'completed' => 'success',
+                'pending' => 'warning',
+                'queued' => 'info',
+                'paid' => 'info',
+                'in_progress' => 'warning',
+                'available_for_pickup' => 'info',
+                'failed' => 'danger',
+                'refunded' => 'danger',
+            ];
+            $lastClass = $statusClassMap[$lastTransferStatus] ?? 'secondary';
+        @endphp
+        <div class="stat-card {{ $lastClass }}">
             <div class="d-flex justify-content-between align-items-center mb-2">
-                <i class="bi bi-info-circle" style="font-size: 2rem; color: {{ $lastTransferStatus === 'completed' ? '#48bb78' : ($lastTransferStatus === 'pending' ? '#ed8936' : '#f56565') }};"></i>
+                <i class="bi bi-info-circle" style="font-size: 2rem;"></i>
             </div>
             <div class="stat-value" style="font-size: 1.5rem;">{{ ucfirst($lastTransferStatus) }}</div>
             <div class="stat-label">Last Transfer Status</div>
@@ -57,7 +70,7 @@
                                     <th>#</th>
                                     <th>Beneficiary</th>
                                     <th>Amount</th>
-                                    <th>From → To</th>
+                                    <th>From -> To</th>
                                     <th>Status</th>
                                     <th>Initiated</th>
                                 </tr>
@@ -150,10 +163,37 @@
             </div>
             <div class="card-body">
                 <div class="mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="text-muted">Full Name</span>
+                        <strong>{{ $accountName ?? auth()->user()->name }}</strong>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="text-muted">Available Balance</span>
+                        <strong class="h5 mb-0">{{ number_format($accountBalance ?? 0, 2) }} {{ $balanceCurrency ?? 'USD' }}</strong>
+                    </div>
+                    <small class="text-muted">Updated from your profile wallet/linked accounts.</small>
+                </div>
+                <div class="mb-3">
                     <div class="d-flex justify-content-between mb-1">
                         <span class="text-muted">Account Status</span>
-                        <span class="badge bg-success badge-modern">Active</span>
+                        @php
+                            $status = strtolower($accountStatus ?? 'pending');
+                            $statusClass = match ($status) {
+                                'approved', 'active' => 'success',
+                                'pending' => 'warning',
+                                'rejected', 'suspended' => 'danger',
+                                default => 'secondary',
+                            };
+                        @endphp
+                        <span class="badge bg-{{ $statusClass }} badge-modern">{{ ucfirst($status) }}</span>
                     </div>
+                    @if(($accountStatus ?? 'pending') === 'pending')
+                        <small class="text-muted">Pending admin approval after registration.</small>
+                    @else
+                        <small class="text-muted">Your first linked bank account is your company wallet; additional accounts are external and can move funds in both directions.</small>
+                    @endif
                 </div>
                 <div class="mb-3">
                     <div class="d-flex justify-content-between mb-1">
