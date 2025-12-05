@@ -22,7 +22,6 @@ class DatabaseSeeder extends Seeder
             CurrencySeeder::class,
             TransferMethodSeeder::class,
             PromotionSeeder::class,
-            ExchangeRateSeeder::class,
             TransferFeeSeeder::class,
             LocationsSeeder::class,
             AgentsSeeder::class,

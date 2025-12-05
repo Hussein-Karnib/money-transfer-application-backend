@@ -28,7 +28,7 @@
                         </select>
                     </div>
                     <div class="col-md-4 d-flex align-items-end">
-                        <a href="{{ route('agents.map') }}" class="btn btn-outline-modern btn-modern w-100">
+                        <a href="{{ route('agents.map_all') }}" class="btn btn-outline-modern btn-modern w-100">
                             <i class="bi bi-map me-2"></i>View Agent Map
                         </a>
                     </div>

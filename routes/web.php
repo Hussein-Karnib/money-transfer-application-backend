@@ -48,6 +48,12 @@ Route::get('/agents', function (Request $request) {
     return view('agents.map', compact('agents'));
 })->name('agents.map');
 
+// All-agents Leaflet map with search
+Route::get('/agents/map-all', [AgentController::class, 'mapAll'])->name('agents.map_all');
+
+// Dedicated internal Leaflet map for a single agent (future-friendly for collections)
+Route::get('/agents/{agent}/map', [AgentController::class, 'showMap'])->name('agents.map.single');
+
 // Agent registration form view
 Route::get('/partner/register', function (Request $request) {
     // Ensure session is started to generate CSRF token
