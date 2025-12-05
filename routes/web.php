@@ -18,7 +18,6 @@ use App\Http\Controllers\UserVerificationController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\AgentTransactionController;
-use App\Http\Controllers\GoogleAuthController;
 use Illuminate\Support\Facades\Storage;
 
 Route::get('/auth/{provider}/callback', [SocialAuthController::class, 'callback'])
@@ -518,9 +517,3 @@ Route::middleware(['auth'])->group(function () {
     // Transfer cancel action
     Route::post('/transfers/{transfer}/cancel', [TransferController::class, 'cancel'])->name('transfers.cancel');
 });
-
-
-
-//google auth routes
-Route::get('/auth/google/redirect', [GoogleAuthController::class, 'redirectToGoogle'])->name('google.redirect');
-Route::get('/auth/google/callback', [GoogleAuthController::class, 'handleGoogleCallback'])->name('google.callback');
