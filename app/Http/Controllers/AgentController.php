@@ -79,6 +79,7 @@ class AgentController extends Controller
             'longitude' => ['nullable', 'numeric', 'between:-180,180'],
         ]);
 
+        $user = null;
         DB::transaction(function () use ($validated, &$user) {
             // 1. Get Agent role (try multiple name variations and id 2)
             $agentRole = \App\Models\Role::whereIn('name', ['agent', 'Agent', 'AGENT'])->first();
@@ -133,7 +134,14 @@ class AgentController extends Controller
             );
         });
 
-        return redirect()->route('home')->with('success', 'Registration successful! Your account is pending admin approval.');
+        // Auto-login the agent after registration
+        Auth::login($user);
+        
+        // Regenerate session after login for security
+        $request->session()->regenerate();
+        
+        // Redirect to agent portal dashboard
+        return redirect()->route('portal.dashboard')->with('success', 'Registration successful! Your account is pending admin approval. You can access your portal while waiting for approval.');
     }
 
     /**

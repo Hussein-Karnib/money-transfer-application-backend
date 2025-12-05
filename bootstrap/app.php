@@ -15,9 +15,11 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
-        // Exclude login route from CSRF verification temporarily
+        // Exclude login route, OAuth callbacks, and agent registration from CSRF verification
         $middleware->validateCsrfTokens(except: [
             'login',
+            'auth/*/callback',
+            'partner/register',
         ]);
         
         $middleware->alias([
