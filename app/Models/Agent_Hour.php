@@ -2,10 +2,14 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Database\Factories\AgentHourFactory;
 
 class Agent_Hour extends Model
 {
+    use HasFactory;
+
     protected $table = 'agent_hours';
     
     public $timestamps = false;
@@ -31,5 +35,9 @@ class Agent_Hour extends Model
     {
         return $this->belongsTo(Agent::class);
     }
-}
 
+    protected static function newFactory()
+    {
+        return AgentHourFactory::new();
+    }
+}
