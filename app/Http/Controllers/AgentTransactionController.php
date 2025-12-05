@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Agent;
 use App\Models\Agent_Transaction;
 use App\Models\Transfer;
+use App\Services\TransferService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
@@ -13,6 +14,12 @@ use App\Mail\TransactionCompletedMail;
 
 class AgentTransactionController extends Controller
 {
+    protected $transferService;
+
+    public function __construct(TransferService $transferService)
+    {
+        $this->transferService = $transferService;
+    }
     /**
      * Display a history of transactions for a specific agent.
      */
@@ -109,6 +116,17 @@ class AgentTransactionController extends Controller
             if ($transfer->status !== 'available_for_pickup') {
                 return back()->withErrors(['transfer_reference' => 'This transfer is not ready for pickup yet.']);
             }
+            
+            // RESTRICTION: Check if agent has sufficient balance to pay out
+            // For cash-out, agent pays money to customer, so balance must be sufficient
+            $requiredAmount = $transfer->amount;
+            $currentBalance = $agent->balance ?? 0;
+            
+            if ($currentBalance < $requiredAmount) {
+                return back()->withErrors([
+                    'transfer_reference' => 'Insufficient agent balance to process this cash-out. Required: $' . number_format($requiredAmount, 2) . ', Available: $' . number_format($currentBalance, 2) . '. Please ensure you have sufficient funds before processing payouts.'
+                ]);
+            }
         } elseif ($validated['type'] === 'cash_in') {
             // Rule: Can only cash in if status is 'queued' or 'paid'
             if (!in_array($transfer->status, ['queued', 'paid'])) {
@@ -132,20 +150,39 @@ class AgentTransactionController extends Controller
                 'processed_at' => now(),
             ]);
 
-            // 2. Increase agent balance when processing transfer
-            // Agent receives the transfer amount (they handle the money)
-            $agent->increment('balance', $transfer->amount);
+            // 2. Update agent balance based on transaction type
+            if ($validated['type'] === 'cash_in') {
+                // Cash-in: Agent receives money from customer → balance INCREASES
+                $agent->increment('balance', $transfer->amount);
+            } elseif ($validated['type'] === 'cash_out') {
+                // Cash-out: Agent pays money to customer → balance DECREASES
+                // Balance check already done above, safe to deduct
+                $agent->decrement('balance', $transfer->amount);
+            }
 
-            // 3. Update the Main Transfer Status
-            // Note: User balance is already deducted when transfer is created (in TransferService)
+            // 3. Update the Main Transfer Status using TransferService
+            // This ensures balance is deducted when status becomes 'completed'
             if ($validated['type'] === 'cash_out') {
-                $transfer->update(['status' => 'completed']);
+                // Cash-out: Agent pays customer → transfer is completed
+                // This will trigger balance deduction in TransferService
+                $this->transferService->updateStatus(
+                    $transfer->id,
+                    'completed',
+                    "Agent {$agent->store_name} processed cash-out",
+                    'agent',
+                    $agent->id
+                );
             } elseif ($validated['type'] === 'cash_in') {
-                // Cash-in: When agent processes payment, transfer is completed
-                $transfer->update([
-                    'status' => 'completed',
-                    'completed_at' => now(),
-                ]);
+                // Cash-in: When agent processes payment, transfer becomes available for pickup
+                // This makes it appear in "Pending Cash-Out (Payouts)" section
+                // Balance is NOT deducted yet - will be deducted when cash-out is processed
+                $this->transferService->updateStatus(
+                    $transfer->id,
+                    'available_for_pickup',
+                    "Agent {$agent->store_name} processed cash-in - ready for pickup",
+                    'agent',
+                    $agent->id
+                );
             }
             
             // Optional: Create an Audit Log here (via helper/observer)
@@ -154,8 +191,15 @@ class AgentTransactionController extends Controller
         // Refresh agent to get updated balance
         $agent->refresh();
         
+        // Create success message based on transaction type
+        if ($validated['type'] === 'cash_in') {
+            $message = 'Cash-in processed successfully! Commission earned: $' . number_format($commission, 2) . '. Your balance increased by $' . number_format($transfer->amount, 2) . '. New balance: $' . number_format($agent->balance, 2) . '. Transfer is now available for cash-out in Pending Cash-Out section.';
+        } else {
+            $message = 'Cash-out processed successfully! Commission earned: $' . number_format($commission, 2) . '. Your balance decreased by $' . number_format($transfer->amount, 2) . '. New balance: $' . number_format($agent->balance, 2) . '. Transfer completed.';
+        }
+        
         return redirect()->route('portal.transactions.index')
-            ->with('success', 'Transaction processed successfully! Commission earned: $' . number_format($commission, 2) . '. Your balance increased by $' . number_format($transfer->amount, 2) . '. New balance: $' . number_format($agent->balance, 2));
+            ->with('success', $message);
     }
 
     /**

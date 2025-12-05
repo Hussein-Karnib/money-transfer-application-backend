@@ -452,16 +452,27 @@ Route::middleware(['auth'])->group(function () {
                 ->get();
             $currencies = App\Models\Currency::orderBy('code')->get();
             $methods = App\Models\Transfer_Method::all();
+            
+            // Load user's purchased active offers
+            $purchasedOffers = DB::table('user_offers')
+                ->where('user_id', $user->id)
+                ->where('status', 'active')
+                ->where(function($query) {
+                    $query->whereNull('expires_at')
+                          ->orWhere('expires_at', '>', now());
+                })
+                ->orderBy('purchased_at', 'desc')
+                ->get();
+            
             $prefill = [
                 'amount' => $request->input('amount'),
                 'currency_from' => $request->input('currency_from'),
                 'currency_to' => $request->input('currency_to'),
                 'speed' => $request->input('speed'),
                 'transfer_method_id' => $request->input('transfer_method_id'),
-                'selected_offers' => $request->input('selected_offers', []),
             ];
             
-            return view('transfers.create', compact('beneficiaries', 'currencies', 'methods', 'prefill'));
+            return view('transfers.create', compact('beneficiaries', 'currencies', 'methods', 'prefill', 'purchasedOffers'));
         })->name('transfers.create');
         
         // Search transfer services
@@ -560,6 +571,10 @@ Route::middleware(['auth'])->group(function () {
     // Wallet actions (Cash In/Cash Out)
     Route::post('/wallet/cash-in', [App\Http\Controllers\WalletController::class, 'cashIn'])->name('wallet.cash-in');
     Route::post('/wallet/cash-out', [App\Http\Controllers\WalletController::class, 'cashOut'])->name('wallet.cash-out');
+    
+    // Offers routes
+    Route::get('/offers', [App\Http\Controllers\OfferController::class, 'index'])->name('offers.index');
+    Route::post('/offers/purchase', [App\Http\Controllers\OfferController::class, 'purchase'])->name('offers.purchase');
     
     // Notification actions
     Route::post('/notifications/{id}/read', [NotificationController::class, 'markAsRead'])->name('notifications.markAsRead');

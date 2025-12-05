@@ -193,38 +193,7 @@ class TransferSearchController extends Controller
             ];
         });
 
-        $purchaseOffers = collect([
-            [
-                'name'        => 'Fee Shield Pass',
-                'description' => 'Waive most of the fees on this transfer - best when sending larger amounts.',
-                'price'       => round(max($fee * 0.35, 2), 2),
-                'savings'     => round(min($fee, $fee * 0.6), 2),
-            ],
-            [
-                'name'        => 'Instant Upgrade',
-                'description' => 'Jump the queue and process as an instant transfer.',
-                'price'       => round(max($fee * 0.45, 3), 2),
-                'savings'     => round(min($fee * 0.4, $fee), 2),
-            ],
-            [
-                'name'        => 'Rate Lock',
-                'description' => "Lock today's exchange rate for the next 24 hours.",
-                'price'       => round(max($fee * 0.25, 1.5), 2),
-                'savings'     => round($amount * max($exchangeRate * 0.005, 0.01), 2),
-            ],
-            [
-                'name'        => 'Cash Pickup Booster',
-                'description' => 'Guarantee fast cash availability at partner agents.',
-                'price'       => round(max($fee * 0.3, 2), 2),
-                'savings'     => round(min($fee * 0.3, $fee), 2),
-            ],
-            [
-                'name'        => 'Mobile Wallet Bonus',
-                'description' => 'Add a small cashback to the recipient mobile wallet.',
-                'price'       => round(max($fee * 0.2, 1), 2),
-                'savings'     => round(min($fee * 0.25, $fee), 2),
-            ],
-        ]);
+        // Offers removed from search - users can buy them separately
 
         return view('transfers.search', compact(
             'countries',
@@ -250,7 +219,6 @@ class TransferSearchController extends Controller
             'countryFrom',
             'countryTo',
             'transferOptions',
-            'purchaseOffers',
             'speedProfile',
             'selectedOffers',
             'offersTotal'

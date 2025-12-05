@@ -193,17 +193,16 @@ class TransferService
             $offers = $data['offers'] ?? null;
             $offersTotal = isset($data['offers_total']) ? (float) $data['offers_total'] : 0.0;
 
-            // Check and deduct user balance before creating transfer
+            // Check user balance (but don't deduct yet - will deduct when status becomes 'completed')
             if ($sender->balance_currency !== strtoupper($data['currency_from'])) {
                 throw new \Exception('Currency mismatch. Your wallet is in ' . ($sender->balance_currency ?? 'USD') . ', but transfer requires ' . $data['currency_from']);
             }
 
+            // Only check balance availability - don't deduct yet
+            // Balance will be deducted when transfer status changes to 'completed'
             if ($sender->balance < $totalAmount) {
                 throw new \Exception('Insufficient balance. Available: ' . number_format($sender->balance ?? 0, 2) . ' ' . ($sender->balance_currency ?? 'USD') . ', Required: ' . number_format($totalAmount, 2) . ' ' . $data['currency_from']);
             }
-
-            // Deduct balance immediately when transfer is created
-            $sender->decrement('balance', $totalAmount);
 
             // Create transfer
             $transfer = Transfer::create([
@@ -287,8 +286,13 @@ class TransferService
             throw new \Exception('Cannot change status of refunded transfer');
         }
 
-        // Refund balance if status changes to failed or refunded
-        if (in_array($status, ['failed', 'refunded']) && !in_array($currentStatus, ['failed', 'refunded', 'completed'])) {
+        // Deduct balance when status changes to 'completed'
+        if ($status === 'completed' && $currentStatus !== 'completed') {
+            $this->deductBalance($transfer);
+        }
+
+        // Refund balance if status changes to failed or refunded (only if balance was already deducted)
+        if (in_array($status, ['failed', 'refunded']) && $currentStatus === 'completed') {
             $this->refundBalance($transfer);
         }
 
@@ -356,7 +360,65 @@ class TransferService
     }
 
     /**
-     * Refund balance to user when transfer is cancelled or fails
+     * Deduct balance from user when transfer is completed
+     */
+    private function deductBalance(Transfer $transfer): void
+    {
+        $sender = $transfer->sender;
+        
+        if (!$sender) {
+            Log::warning('Cannot deduct balance: sender not found', [
+                'transfer_id' => $transfer->id,
+            ]);
+            throw new \Exception('Sender not found for transfer');
+        }
+
+        // Check if balance currency matches
+        if ($sender->balance_currency !== $transfer->currency_from) {
+            Log::warning('Cannot deduct balance: currency mismatch', [
+                'transfer_id' => $transfer->id,
+                'sender_currency' => $sender->balance_currency,
+                'transfer_currency' => $transfer->currency_from,
+            ]);
+            throw new \Exception('Currency mismatch. Cannot deduct balance.');
+        }
+
+        // Check if user has sufficient balance
+        if ($sender->balance < $transfer->total_amount) {
+            Log::warning('Cannot deduct balance: insufficient balance', [
+                'transfer_id' => $transfer->id,
+                'user_balance' => $sender->balance,
+                'required' => $transfer->total_amount,
+            ]);
+            throw new \Exception('Insufficient balance to complete transfer. Available: ' . number_format($sender->balance ?? 0, 2) . ' ' . ($sender->balance_currency ?? 'USD') . ', Required: ' . number_format($transfer->total_amount, 2) . ' ' . $transfer->currency_from);
+        }
+
+        // Deduct balance
+        $sender->decrement('balance', $transfer->total_amount);
+        $sender->save();
+
+        // Create wallet transaction record for tracking
+        \App\Models\WalletTransaction::create([
+            'user_id' => $sender->id,
+            'bank_account_id' => null, // Transfer, not bank account related
+            'type' => 'cash_out', // Money going out
+            'amount' => $transfer->total_amount,
+            'currency_code' => $transfer->currency_from,
+            'status' => 'completed',
+            'description' => "Transfer #{$transfer->reference} completed",
+        ]);
+
+        Log::info("Balance deducted for completed transfer", [
+            'transfer_id' => $transfer->id,
+            'reference' => $transfer->reference,
+            'sender_id' => $sender->id,
+            'amount' => $transfer->total_amount,
+            'new_balance' => $sender->fresh()->balance,
+        ]);
+    }
+
+    /**
+     * Refund balance to user when transfer is cancelled or fails (only if balance was already deducted)
      */
     private function refundBalance(Transfer $transfer)
     {
@@ -369,6 +431,11 @@ class TransferService
             return;
         }
 
+        // Only refund if balance was already deducted (transfer was completed)
+        // If transfer was queued/paid, balance was never deducted, so no refund needed
+        // Note: This method is called from updateStatus when status changes from 'completed' to 'failed'/'refunded'
+        // So we know balance was deducted if we're here
+        
         // Check if balance currency matches
         if ($sender->balance_currency === $transfer->currency_from) {
             $totalToRefund = $transfer->total_amount;
@@ -426,8 +493,8 @@ class TransferService
             ]);
         }
 
-        // Refund balance to user when transfer is cancelled
-        $this->refundBalance($transfer);
+        // No need to refund balance - balance is only deducted when status becomes 'completed'
+        // Since transfer is queued/paid, balance hasn't been deducted yet
 
         return $this->updateStatus($transferId, 'failed', 'Transfer cancelled by user', 'user', $userId);
     }

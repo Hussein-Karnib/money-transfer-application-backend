@@ -7,6 +7,7 @@ use App\Models\Agent;
 use App\Models\Agent_Transaction;
 use App\Models\Transfer;
 use App\Models\Transfer_Event;
+use App\Services\TransferService;
 use App\Support\NotificationHelper;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -17,6 +18,12 @@ use App\Mail\TransactionCompletedMail;
 
 class AgentTransactionApiController extends Controller
 {
+    protected $transferService;
+
+    public function __construct(TransferService $transferService)
+    {
+        $this->transferService = $transferService;
+    }
     /**
      * Return all transactions processed by the given agent.
      */
@@ -74,6 +81,19 @@ class AgentTransactionApiController extends Controller
             ], 409);
         }
 
+        // RESTRICTION: Check agent balance for cash-out
+        if ($validated['type'] === 'cash_out') {
+            $requiredAmount = $transfer->amount;
+            $currentBalance = $agent->balance ?? 0;
+            
+            if ($currentBalance < $requiredAmount) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Insufficient agent balance to process this cash-out. Required: $' . number_format($requiredAmount, 2) . ', Available: $' . number_format($currentBalance, 2),
+                ], 422);
+            }
+        }
+
         $commissionRate = $agent->commission_rate ?? 0.01;
         $commission = round($transfer->amount * $commissionRate, 2);
         $newStatus = $validated['type'] === 'cash_out' ? 'completed' : 'available_for_pickup';
@@ -96,23 +116,38 @@ class AgentTransactionApiController extends Controller
                 'processed_at' => $processedAt,
             ]);
 
-            $transfer->update([
-                'status' => $newStatus,
-                'completed_at' => $validated['type'] === 'cash_out' ? $processedAt : null,
-            ]);
+            // Update agent balance based on transaction type
+            if ($validated['type'] === 'cash_in') {
+                // Cash-in: Agent receives money from customer → balance INCREASES
+                $agent->increment('balance', $transfer->amount);
+            } elseif ($validated['type'] === 'cash_out') {
+                // Cash-out: Agent pays money to customer → balance DECREASES
+                $agent->decrement('balance', $transfer->amount);
+            }
 
-            Transfer_Event::create([
-                'transfer_id' => $transfer->id,
-                'status' => $newStatus,
-                'note' => sprintf(
-                    'Agent %s processed %s (reference %s)',
-                    $agent->store_name,
-                    $validated['type'],
-                    $transfer->reference
-                ),
-                'actor_type' => 'agent',
-                'actor_id' => $agent->id,
-            ]);
+            // Use TransferService to update status - this ensures balance is deducted when status becomes 'completed'
+            if ($validated['type'] === 'cash_out') {
+                // Cash-out: Transfer is completed - balance will be deducted
+                $this->transferService->updateStatus(
+                    $transfer->id,
+                    'completed',
+                    sprintf('Agent %s processed cash-out (reference %s)', $agent->store_name, $transfer->reference),
+                    'agent',
+                    $agent->id
+                );
+            } else {
+                // Cash-in: Transfer becomes available for pickup - balance not deducted yet
+                $this->transferService->updateStatus(
+                    $transfer->id,
+                    'available_for_pickup',
+                    sprintf('Agent %s processed cash-in (reference %s)', $agent->store_name, $transfer->reference),
+                    'agent',
+                    $agent->id
+                );
+            }
+
+            // Transfer status update and event creation is now handled by TransferService->updateStatus()
+            // No need to create events manually here
 
             return $agentTransaction->load('transfer');
         });

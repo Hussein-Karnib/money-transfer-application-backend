@@ -136,25 +136,31 @@ class WalletController extends Controller
         }
 
         try {
-            DB::transaction(function () use ($user, $bankAccount, $request) {
-                $amount = $request->amount;
-                $currency = $request->currency;
+            $amount = $request->amount;
+            $currency = $request->currency;
+            $transaction = null;
 
-                // Deduct from user balance
-                $user->balance = $currentBalance - $amount;
+            DB::transaction(function () use ($user, $bankAccount, $amount, $currency, &$transaction) {
+                // Refresh user to get latest balance
+                $user->refresh();
+                
+                // Deduct balance immediately
+                $user->decrement('balance', $amount);
+                
+                // Ensure balance doesn't go negative (safety check)
                 if ($user->balance < 0) {
                     $user->balance = 0;
+                    $user->save();
                 }
-                $user->save();
 
-                // Create wallet transaction record
-                WalletTransaction::create([
+                // Create wallet transaction record with completed status
+                $transaction = WalletTransaction::create([
                     'user_id' => $user->id,
                     'bank_account_id' => $bankAccount->id,
                     'type' => 'cash_out',
                     'amount' => $amount,
                     'currency_code' => $currency,
-                    'status' => 'completed',
+                    'status' => 'completed', // Immediately completed
                     'description' => "Cash out to {$bankAccount->bank_name}",
                 ]);
 
@@ -163,17 +169,51 @@ class WalletController extends Controller
                     $user->id,
                     'cash_out',
                     'wallet_transactions',
-                    null,
+                    $transaction->id,
                     [
                         'amount' => $amount,
                         'currency' => $currency,
                         'bank_account' => $bankAccount->bank_name,
+                        'status' => 'completed',
+                    ]
+                );
+            });
+
+            // Send notification to user AFTER transaction commits
+            // This ensures the notification is saved properly
+            if ($transaction) {
+                $user->refresh();
+                try {
+                    $user->notify(new \App\Notifications\CashOutSuccessful($transaction, $bankAccount));
+                    \Log::info('Cash-out notification sent', [
+                        'user_id' => $user->id,
+                        'transaction_id' => $transaction->id,
+                    ]);
+                } catch (\Exception $e) {
+                    \Log::error('Failed to send cash-out notification: ' . $e->getMessage(), [
+                        'user_id' => $user->id,
+                        'transaction_id' => $transaction->id,
+                    ]);
+                }
+            }
+
+                // Log audit
+                AuditLogController::logSystemAction(
+                    $user->id,
+                    'cash_out',
+                    'wallet_transactions',
+                    $transaction->id,
+                    [
+                        'amount' => $amount,
+                        'currency' => $currency,
+                        'bank_account' => $bankAccount->bank_name,
+                        'status' => 'completed',
                     ]
                 );
             });
 
             return redirect()->route('dashboard')
-                ->with('success', "Successfully cashed out {$request->amount} {$request->currency} to your bank account.");
+                ->with('success', "Cash-out successful! {$request->amount} {$request->currency} has been sent to your bank account. Your balance has been updated.");
         } catch (\Exception $e) {
             \Log::error('Cash out error: ' . $e->getMessage(), [
                 'user_id' => $user->id,
@@ -185,5 +225,6 @@ class WalletController extends Controller
                 ->with('error', 'An error occurred during cash out. Please try again.');
         }
     }
+
 }
 

@@ -11,6 +11,7 @@ use App\Services\PromotionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\AuditLogController;
 
 /*
@@ -273,9 +274,15 @@ class TransferController extends Controller
         );
         $selectedOffers = $data['selected_offers'] ?? [];
         
-        // Calculate offers with individual prices
+        // Validate and mark purchased offers as used
+        if (!empty($selectedOffers)) {
+            $this->validateAndUsePurchasedOffers($userId, $selectedOffers);
+        }
+        
+        // Calculate offers with individual prices (for display purposes)
         $offersWithPrices = $this->calculateOffersWithPrices($baseFee, $amount, $exchangeRate, $selectedOffers);
-        $offersTotal = array_sum(array_column($offersWithPrices, 'price'));
+        // Purchased offers don't add to fee - they're free to use
+        $offersTotal = 0.0;
 
         // 3) Promotion / discount (again on FEE, server-side)
         $promotion      = null;
@@ -301,7 +308,8 @@ class TransferController extends Controller
             }
         }
 
-        $finalFee       = round($baseFee + $offersTotal, 2);
+        // Final fee: base fee only (purchased offers don't add to fee)
+        $finalFee       = round($baseFee, 2);
         $discountAmount = round($discountAmount, 2);
 
         // 4) Totals
@@ -451,12 +459,14 @@ class TransferController extends Controller
             return [];
         }
 
+        // Map purchased offer names to their display values (matching OfferController)
         $definitions = [
-            'Fee Shield Pass'     => fn() => round(max($baseFee * 0.35, 2), 2),
-            'Instant Upgrade'     => fn() => round(max($baseFee * 0.45, 3), 2),
-            'Rate Lock'           => fn() => round(max($baseFee * 0.25, 1.5), 2),
-            'Cash Pickup Booster' => fn() => round(max($baseFee * 0.3, 2), 2),
-            'Mobile Wallet Bonus' => fn() => round(max($baseFee * 0.2, 1), 2),
+            'Fee Shield Pass'        => fn() => round(max($baseFee * 0.35, 2), 2),
+            'Instant Upgrade'        => fn() => round(max($baseFee * 0.45, 3), 2),
+            'Rate Lock Premium'      => fn() => round(max($baseFee * 0.25, 1.5), 2),
+            'Cash Pickup Priority'   => fn() => round(max($baseFee * 0.3, 2), 2),
+            'Mobile Wallet Bonus'    => fn() => round(max($baseFee * 0.2, 1), 2),
+            'Transfer Bundle Pack'   => fn() => round(max($baseFee * 0.5, 5), 2), // Bundle includes all features
         ];
 
         $offers = [];
@@ -471,5 +481,44 @@ class TransferController extends Controller
         }
 
         return $offers;
+    }
+
+    /**
+     * Validate that user owns the selected offers and mark them as used
+     */
+    private function validateAndUsePurchasedOffers(int $userId, array $selectedOffers): void
+    {
+        if (empty($selectedOffers)) {
+            return;
+        }
+
+        // Get user's active offers
+        $userOffers = DB::table('user_offers')
+            ->where('user_id', $userId)
+            ->where('status', 'active')
+            ->where(function($query) {
+                $query->whereNull('expires_at')
+                      ->orWhere('expires_at', '>', now());
+            })
+            ->whereIn('offer_name', $selectedOffers)
+            ->get()
+            ->pluck('offer_name')
+            ->toArray();
+
+        // Check if all selected offers are owned by user
+        $invalidOffers = array_diff($selectedOffers, $userOffers);
+        if (!empty($invalidOffers)) {
+            throw new \Exception('You do not own the following offers: ' . implode(', ', $invalidOffers) . '. Please purchase them first.');
+        }
+
+        // Mark offers as used
+        DB::table('user_offers')
+            ->where('user_id', $userId)
+            ->where('status', 'active')
+            ->whereIn('offer_name', $selectedOffers)
+            ->update([
+                'status' => 'used',
+                'updated_at' => now(),
+            ]);
     }
 }
