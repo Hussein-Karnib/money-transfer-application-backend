@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Admin;
 use App\Models\User;
+use App\Models\Agent;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
@@ -121,8 +122,8 @@ class AdminController extends Controller
      */
     public function approvals()
     {
-        $pendingAgents = \App\Models\Agent::where('status', 'pending')->with('user')->get();
-        $newUsers = \App\Models\User::where('status', 'pending')->orderBy('created_at', 'desc')->limit(10)->get();
+        $pendingAgents = Agent::where('status', 'pending')->with('user')->get();
+        $newUsers = User::where('status', 'pending')->orderBy('created_at', 'desc')->limit(10)->get();
         
         return view('admin.approvals', compact('pendingAgents', 'newUsers'));
     }

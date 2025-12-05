@@ -18,11 +18,8 @@ use App\Http\Controllers\UserVerificationController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\AgentTransactionController;
-<<<<<<< Updated upstream
 use App\Http\Controllers\GoogleAuthController;
-=======
 use App\Http\Controllers\ReviewController;
->>>>>>> Stashed changes
 use Illuminate\Support\Facades\Storage;
 
 Route::get('/auth/{provider}/callback', [SocialAuthController::class, 'callback'])
