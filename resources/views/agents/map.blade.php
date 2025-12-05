@@ -21,7 +21,7 @@
             <a class="navbar-brand" href="{{ route('home') }}">Money Transfer</a>
             <div class="navbar-nav ms-auto">
                 <a class="nav-link" href="{{ route('home') }}">Home</a>
-                <a class="nav-link active" href="{{ route('agents.map') }}">Find Agents</a>
+                <a class="nav-link active" href="{{ route('agents.map_all') }}">Find Agents</a>
                 <a class="nav-link" href="{{ route('agents.register') }}">Become an Agent</a>
             </div>
         </div>
@@ -48,8 +48,14 @@
                                 </p>
                                 
                                 @if($agent->latitude && $agent->longitude)
+                                    {{-- Old external link:
                                     <a href="https://www.google.com/maps?q={{ $agent->latitude }},{{ $agent->longitude }}" 
                                        target="_blank" class="btn btn-sm btn-outline-primary mb-2">
+                                        View on Map
+                                    </a>
+                                    --}}
+                                    <a href="{{ route('agents.map.single', $agent->id) }}" 
+                                       class="btn btn-sm btn-outline-primary mb-2">
                                         View on Map
                                     </a>
                                 @endif
@@ -88,4 +94,3 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
-
