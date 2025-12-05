@@ -66,7 +66,30 @@ class TransferSearchController extends Controller
         }
 
         // Calculate fee
-        $fee = $this->transferService->calculateFee($amount, $countryFromId, $countryToId, $speed);
+        $baseFee = $this->transferService->calculateFee($amount, $countryFromId, $countryToId, $speed);
+        
+        // Calculate offers total if offers are selected
+        $offersTotal = 0.0;
+        if (!empty($selectedOffers)) {
+            // Use the same calculation logic as TransferController
+            $definitions = [
+                'Fee Shield Pass'     => fn() => round(max($baseFee * 0.35, 2), 2),
+                'Instant Upgrade'     => fn() => round(max($baseFee * 0.45, 3), 2),
+                'Rate Lock'           => fn() => round(max($baseFee * 0.25, 1.5), 2),
+                'Cash Pickup Booster' => fn() => round(max($baseFee * 0.3, 2), 2),
+                'Mobile Wallet Bonus' => fn() => round(max($baseFee * 0.2, 1), 2),
+            ];
+            
+            foreach ($selectedOffers as $offerName) {
+                if (isset($definitions[$offerName])) {
+                    $offersTotal += $definitions[$offerName]();
+                }
+            }
+            $offersTotal = round($offersTotal, 2);
+        }
+        
+        // Total fee includes base fee + offers
+        $fee = round($baseFee + $offersTotal, 2);
         
         // Get fee details from database
         $feeRule = Transfer_Fee::where('country_from_id', $countryFromId)
@@ -76,7 +99,7 @@ class TransferSearchController extends Controller
             ->with(['countryFrom', 'countryTo'])
             ->first();
 
-        // Calculate totals
+        // Calculate totals (fee already includes offers if selected)
         $totalAmount = $amount + $fee;
         $recipientAmount = $amount * $exchangeRate;
         
@@ -229,7 +252,8 @@ class TransferSearchController extends Controller
             'transferOptions',
             'purchaseOffers',
             'speedProfile',
-            'selectedOffers'
+            'selectedOffers',
+            'offersTotal'
         ));
     }
 }

@@ -75,7 +75,18 @@
                                                 <strong>{{ $account->bank_name }}</strong>
                                             </div>
                                         </td>
-                                        <td><code>{{ $account->account_number ?? 'N/A' }}</code></td>
+                                        <td>
+                                            @php
+                                                $digits = preg_replace('/\D/', '', $account->account_number ?? '');
+                                                $masked = strlen($digits) >= 4 
+                                                    ? substr($digits, 0, 4) . ' **** **** ' . substr($digits, -4)
+                                                    : ($account->account_number ?? 'N/A');
+                                            @endphp
+                                            <code>{{ $masked }}</code>
+                                            @if($account->status === 'verified')
+                                                <br><small class="text-muted">Full: {{ $account->account_number }}</small>
+                                            @endif
+                                        </td>
                                         <td>
                                             <span class="badge bg-light text-dark">{{ $account->currency_code }}</span>
                                         </td>

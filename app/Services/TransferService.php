@@ -189,6 +189,22 @@ class TransferService
             // Generate unique reference code
             $reference = $this->generateReference();
 
+            // Handle offers (optional)
+            $offers = $data['offers'] ?? null;
+            $offersTotal = isset($data['offers_total']) ? (float) $data['offers_total'] : 0.0;
+
+            // Check and deduct user balance before creating transfer
+            if ($sender->balance_currency !== strtoupper($data['currency_from'])) {
+                throw new \Exception('Currency mismatch. Your wallet is in ' . ($sender->balance_currency ?? 'USD') . ', but transfer requires ' . $data['currency_from']);
+            }
+
+            if ($sender->balance < $totalAmount) {
+                throw new \Exception('Insufficient balance. Available: ' . number_format($sender->balance ?? 0, 2) . ' ' . ($sender->balance_currency ?? 'USD') . ', Required: ' . number_format($totalAmount, 2) . ' ' . $data['currency_from']);
+            }
+
+            // Deduct balance immediately when transfer is created
+            $sender->decrement('balance', $totalAmount);
+
             // Create transfer
             $transfer = Transfer::create([
                 'sender_id' => $data['sender_id'],
@@ -207,6 +223,8 @@ class TransferService
                 'discount_amount' => $discountAmount,
                 'speed' => $data['speed'] ?? null,
                 'estimated_delivery_at' => $data['estimated_delivery_at'] ?? null,
+                'offers' => $offers,
+                'offers_total' => $offersTotal,
             ]);
 
             // Optionally increment promotion usage when attached
@@ -267,6 +285,11 @@ class TransferService
 
         if ($currentStatus === 'refunded') {
             throw new \Exception('Cannot change status of refunded transfer');
+        }
+
+        // Refund balance if status changes to failed or refunded
+        if (in_array($status, ['failed', 'refunded']) && !in_array($currentStatus, ['failed', 'refunded', 'completed'])) {
+            $this->refundBalance($transfer);
         }
 
         // Update transfer
@@ -332,6 +355,45 @@ class TransferService
         return $reference;
     }
 
+    /**
+     * Refund balance to user when transfer is cancelled or fails
+     */
+    private function refundBalance(Transfer $transfer)
+    {
+        $sender = $transfer->sender;
+        
+        if (!$sender) {
+            Log::warning('Cannot refund balance: sender not found', [
+                'transfer_id' => $transfer->id,
+            ]);
+            return;
+        }
+
+        // Check if balance currency matches
+        if ($sender->balance_currency === $transfer->currency_from) {
+            $totalToRefund = $transfer->total_amount;
+            
+            // Refund the amount
+            $sender->increment('balance', $totalToRefund);
+            
+            Log::info('Balance refunded for cancelled/failed transfer', [
+                'transfer_id' => $transfer->id,
+                'transfer_reference' => $transfer->reference,
+                'user_id' => $sender->id,
+                'amount_refunded' => $totalToRefund,
+                'currency' => $transfer->currency_from,
+                'new_balance' => $sender->fresh()->balance,
+            ]);
+        } else {
+            Log::warning('Currency mismatch when refunding balance', [
+                'transfer_id' => $transfer->id,
+                'user_id' => $sender->id,
+                'user_currency' => $sender->balance_currency,
+                'transfer_currency' => $transfer->currency_from,
+            ]);
+        }
+    }
+
 
     public function cancelTransfer(int $transferId, int $userId): Transfer
     {
@@ -363,6 +425,9 @@ class TransferService
                 'payment_id' => $transfer->payment->id,
             ]);
         }
+
+        // Refund balance to user when transfer is cancelled
+        $this->refundBalance($transfer);
 
         return $this->updateStatus($transferId, 'failed', 'Transfer cancelled by user', 'user', $userId);
     }

@@ -41,11 +41,46 @@ class AgentTransactionController extends Controller
         $type = $request->get('type', 'cash_in'); // cash_in or cash_out
         
         $transfer = null;
+        $statusError = null;
+        
         if ($transferReference) {
-            $transfer = Transfer::where('reference', $transferReference)->first();
+            $transfer = Transfer::where('reference', $transferReference)
+                ->with(['beneficiary.country', 'beneficiary.method', 'sender'])
+                ->first();
+            
+            if ($transfer) {
+                // Validate transfer status matches the operation type
+                if ($type === 'cash_out') {
+                    // Cash-out requires 'available_for_pickup' status
+                    if ($transfer->status !== 'available_for_pickup') {
+                        $statusError = 'This transfer is not ready for pickup. Status must be "available_for_pickup" but current status is "' . $transfer->status . '".';
+                    }
+                } elseif ($type === 'cash_in') {
+                    // Cash-in requires 'queued' or 'paid' status
+                    if (!in_array($transfer->status, ['queued', 'paid'])) {
+                        $statusError = 'This transfer cannot be processed for cash-in. Status must be "queued" or "paid" but current status is "' . $transfer->status . '".';
+                    }
+                }
+            }
         }
         
-        return view('portal.transactions.create', compact('agent', 'transfer', 'type'));
+        // Get list of available transfers for the selected type (for reference)
+        $availableTransfers = [];
+        if ($type === 'cash_out') {
+            $availableTransfers = Transfer::where('status', 'available_for_pickup')
+                ->with(['beneficiary.country', 'beneficiary.method', 'sender'])
+                ->orderBy('initiated_at', 'desc')
+                ->limit(10)
+                ->get();
+        } else {
+            $availableTransfers = Transfer::whereIn('status', ['queued', 'paid'])
+                ->with(['beneficiary.country', 'beneficiary.method', 'sender'])
+                ->orderBy('initiated_at', 'desc')
+                ->limit(10)
+                ->get();
+        }
+        
+        return view('portal.transactions.create', compact('agent', 'transfer', 'type', 'statusError', 'availableTransfers'));
     }
 
     /**
@@ -97,30 +132,30 @@ class AgentTransactionController extends Controller
                 'processed_at' => now(),
             ]);
 
-            // 2. Update the Main Transfer Status
+            // 2. Increase agent balance when processing transfer
+            // Agent receives the transfer amount (they handle the money)
+            $agent->increment('balance', $transfer->amount);
+
+            // 3. Update the Main Transfer Status
+            // Note: User balance is already deducted when transfer is created (in TransferService)
             if ($validated['type'] === 'cash_out') {
                 $transfer->update(['status' => 'completed']);
             } elseif ($validated['type'] === 'cash_in') {
-                $transfer->update(['status' => 'in_progress']);
+                // Cash-in: When agent processes payment, transfer is completed
+                $transfer->update([
+                    'status' => 'completed',
+                    'completed_at' => now(),
+                ]);
             }
             
             // Optional: Create an Audit Log here (via helper/observer)
         });
 
-        $transfer->refresh()->loadMissing(['sender', 'beneficiary', 'currencyFrom', 'currencyTo']);
-
-        if (! $wasCompleted && $transfer->status === 'completed' && $transfer->sender?->email) {
-            Mail::to($transfer->sender->email)->send(new TransactionCompletedMail($transfer));
-        }
-
-        $beneficiaryDetails = $transfer->beneficiary?->payout_details ?? [];
-        $beneficiaryEmail = is_array($beneficiaryDetails) ? ($beneficiaryDetails['email'] ?? null) : null;
-        if (! $wasCompleted && $transfer->status === 'completed' && $beneficiaryEmail) {
-            Mail::to($beneficiaryEmail)->send(new TransactionCompletedMail($transfer));
-        }
-
+        // Refresh agent to get updated balance
+        $agent->refresh();
+        
         return redirect()->route('portal.transactions.index')
-            ->with('success', 'Transaction processed successfully. Commission earned: ' . number_format($commission, 2));
+            ->with('success', 'Transaction processed successfully! Commission earned: $' . number_format($commission, 2) . '. Your balance increased by $' . number_format($transfer->amount, 2) . '. New balance: $' . number_format($agent->balance, 2));
     }
 
     /**
