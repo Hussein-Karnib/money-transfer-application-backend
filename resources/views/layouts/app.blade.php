@@ -419,6 +419,12 @@
                                     <i class="bi bi-clock-history me-1"></i> Audit Logs
                                 </a>
                             </li>
+                            <li class="nav-item">
+                                <a class="nav-link {{ request()->routeIs('admin.reviews.index') ? 'active' : '' }}" 
+                                   href="{{ route('admin.reviews.index') }}">
+                                    <i class="bi bi-chat-text me-1"></i> Feedback
+                                </a>
+                            </li>
                         @elseif(Auth::user()->role && strtolower(Auth::user()->role->name) === 'agent')
                             {{-- Agent Navigation --}}
                             <li class="nav-item">
@@ -487,6 +493,12 @@
                                     @if($unreadCount > 0)
                                         <span class="badge bg-danger badge-modern ms-1">{{ $unreadCount }}</span>
                                     @endif
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link {{ request()->routeIs('reviews.create') ? 'active' : '' }}" 
+                                   href="{{ route('reviews.create') }}">
+                                    <i class="bi bi-chat-dots me-1"></i> Feedback
                                 </a>
                             </li>
                         @endif

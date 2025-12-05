@@ -18,6 +18,11 @@ use App\Http\Controllers\UserVerificationController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\AgentTransactionController;
+<<<<<<< Updated upstream
+use App\Http\Controllers\GoogleAuthController;
+=======
+use App\Http\Controllers\ReviewController;
+>>>>>>> Stashed changes
 use Illuminate\Support\Facades\Storage;
 
 Route::get('/auth/{provider}/callback', [SocialAuthController::class, 'callback'])
@@ -112,6 +117,9 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->grou
     Route::delete('/auditTable/prune', [AuditLogController::class, 'prune'])->name('auditTable.prune');
     Route::get('/auditTable', [AuditLogController::class, 'index'])->name('auditTable');
     Route::get('/auditTable/{id}', [AuditLogController::class, 'show'])->name('auditTable.show');
+    
+    // --- Reviews / Feedback ---
+    Route::get('/reviews', [ReviewController::class, 'index'])->name('reviews.index');
 
     // --- Manage Agents (Approvals & Oversight) ---
     // Admin agents list view - Load from database
@@ -516,4 +524,8 @@ Route::middleware(['auth'])->group(function () {
     
     // Transfer cancel action
     Route::post('/transfers/{transfer}/cancel', [TransferController::class, 'cancel'])->name('transfers.cancel');
+
+    // Feedback
+    Route::get('/help/feedback', [ReviewController::class, 'create'])->name('reviews.create');
+    Route::post('/help/feedback', [ReviewController::class, 'store'])->name('reviews.store');
 });

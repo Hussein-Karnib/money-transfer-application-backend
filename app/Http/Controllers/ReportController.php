@@ -3,9 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Report;
-use App\Models\Transfer; // Assuming you have this model based on schema
+use App\Models\Transfer;
 use App\Models\User;
 use App\Models\Agent;
+use App\Models\Review;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
@@ -14,9 +15,7 @@ use Carbon\Carbon;
 
 class ReportController extends Controller
 {
-    /**
-     * Display a listing of the generated reports.
-     */
+
     public function index()
     {
         // Show newest reports first
@@ -24,17 +23,13 @@ class ReportController extends Controller
         return view('admin.reports', compact('reports'));
     }
 
-    /**
-     * Show the form for generating a new report.
-     */
+
     public function create()
     {
         return view('admin.reports.create');
     }
 
-    /**
-     * Handle the report generation logic.
-     */
+
     public function store(Request $request)
     {
         $request->validate([
@@ -47,7 +42,7 @@ class ReportController extends Controller
         $startDate = Carbon::parse($request->start_date)->startOfDay();
         $endDate = Carbon::parse($request->end_date)->endOfDay();
 
-        // 1. Fetch Data based on Type
+
         $data = [];
         $headers = [];
         
@@ -57,13 +52,13 @@ class ReportController extends Controller
                 ->get();
             $headers = ['ID', 'Sender', 'Beneficiary', 'Amount', 'Currency', 'Status', 'Date'];
         } elseif ($type === 'platform_usage') {
-            // Aggregate data for platform usage
+
             $newUsers = User::whereBetween('created_at', [$startDate, $endDate])->count();
             $newAgents = Agent::whereBetween('created_at', [$startDate, $endDate])->count();
-            $activeAgents = Agent::where('status', 'active')->count(); // Snapshot
+            $activeAgents = Agent::where('status', 'approved')->count();
             $totalTransfers = Transfer::whereBetween('created_at', [$startDate, $endDate])->count();
             
-            // We'll create a single row for this summary report
+
             $data = [
                 [
                     'metric' => 'New Users',
@@ -84,12 +79,14 @@ class ReportController extends Controller
             ];
             $headers = ['Metric', 'Value'];
         } elseif ($type === 'feedback') {
-            // Placeholder for feedback
-            $data = [];
-            $headers = ['ID', 'User', 'Rating', 'Comment', 'Date'];
+            $data = Review::with('user')
+                ->whereBetween('created_at', [$startDate, $endDate])
+                ->latest()
+                ->get();
+            $headers = ['ID', 'User', 'Email', 'Message', 'Date'];
         }
 
-        // 2. Generate File Content (CSV)
+
         $csvContent = implode(',', $headers) . "\n";
         
         foreach ($data as $item) {
@@ -106,20 +103,28 @@ class ReportController extends Controller
                 $row[] = $item['metric'];
                 $row[] = $item['value'];
             } elseif ($type === 'feedback') {
-                // Empty for now
+                $row[] = $item->id;
+                $row[] = $item->user ? $item->user->name : 'N/A';
+                $row[] = $item->user ? $item->user->email : 'N/A';
+                // Sanitize message for CSV
+                $messageJSON = json_encode($item->message); // Escape quotes/newlines using JSON, or simple replace
+                // Simple replace is safely standard for simple CSV exports
+                $safeMessage = str_replace(["\r", "\n", ","], [" ", " ", ";"], $item->message);
+                $row[] = $safeMessage;
+                $row[] = $item->created_at->toDateTimeString();
             }
             
             $csvContent .= implode(',', $row) . "\n";
         }
 
-        // 3. Define File Path
+
         $filename = 'report_' . $type . '_' . time() . '.csv';
         $filePath = 'reports/' . $filename;
 
-        // 4. Save File to Storage (storage/app/reports)
+
         Storage::put($filePath, $csvContent);
 
-        // 5. Create Database Record
+
         Report::create([
             'type' => $type,
             'generated_at' => now(),
@@ -134,9 +139,7 @@ class ReportController extends Controller
         return redirect()->route('admin.reports.index')->with('success', 'Report generated successfully.');
     }
 
-    /**
-     * Download the file associated with the report.
-     */
+
     public function download(Report $report)
     {
         if (!Storage::exists($report->file_path)) {
@@ -146,17 +149,15 @@ class ReportController extends Controller
         return Storage::download($report->file_path);
     }
 
-    /**
-     * Remove the report record and the file.
-     */
+
     public function destroy(Report $report)
     {
-        // Delete physical file
+
         if ($report->file_path && Storage::exists($report->file_path)) {
             Storage::delete($report->file_path);
         }
 
-        // Delete DB record
+
         $report->delete();
 
         return redirect()->route('admin.reports.index')->with('success', 'Report deleted.');
