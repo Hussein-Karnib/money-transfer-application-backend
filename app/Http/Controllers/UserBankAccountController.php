@@ -162,7 +162,7 @@ public function destroy(Request $request, int $id)
 }
 
 
-    public function verify(Request $request, int $id): JsonResponse
+    public function verify(Request $request, int $id)
     {
         // This one is probably for admin/agent, so we don't limit by Auth::id()
         $account = UserBankAccount::findOrFail($id);
@@ -176,13 +176,32 @@ public function destroy(Request $request, int $id)
             'verified_at' => $data['status'] === 'verified' ? now() : null,
         ]);
 
+        AuditLogController::logSystemAction(
+            Auth::id(),
+            'verify_bank_account',
+            'user_bank_accounts',
+            $account->id,
+            [
+                'status' => $data['status'],
+                'user_id' => $account->user_id,
+                'bank_name' => $account->bank_name,
+            ]
+        );
+
         $account = $account->fresh()->load('currency');
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Bank account verification updated',
-            'data'    => $this->formatAccount($account),
-        ]);
+        // Check if this is a web request
+        if ($request->wantsJson() || $request->is('api/*')) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Bank account verification updated',
+                'data'    => $this->formatAccount($account),
+            ]);
+        }
+
+        // Web request - redirect back with success message
+        return redirect()->route('admin.bank-accounts.index')
+            ->with('success', 'Bank account ' . $data['status'] . ' successfully.');
     }
 
     // =========================================================

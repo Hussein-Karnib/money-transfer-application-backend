@@ -134,6 +134,24 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->grou
     // --- Statistics ---
     Route::get('/statistics', [StatisticController::class, 'statistic'])->name('statistics');
     Route::get('/statistics/search', [StatisticController::class, 'searchDate'])->name('searchDate');
+    
+    // --- Bank Account Verification ---
+    Route::get('/bank-accounts', function (Request $request) {
+        $query = App\Models\UserBankAccount::with(['user', 'currency']);
+        
+        if ($request->has('status')) {
+            $query->where('status', $request->status);
+        } else {
+            // Default to pending accounts
+            $query->where('status', 'pending');
+        }
+        
+        $bankAccounts = $query->orderBy('created_at', 'desc')->paginate(15);
+        
+        return view('admin.bank_accounts.index', compact('bankAccounts'));
+    })->name('bank-accounts.index');
+    
+    Route::post('/bank-accounts/{id}/verify', [App\Http\Controllers\UserBankAccountController::class, 'verify'])->name('bank-accounts.verify');
 });
 
 
@@ -331,6 +349,19 @@ Route::middleware(['auth', 'role:agent'])->prefix('portal')->name('portal.')->gr
         return app(AgentTransactionController::class)->index($agent);
     })->name('transactions.index');
     
+    // Create transaction (process transfer)
+    Route::get('/transactions/create', function (Request $request) use ($getAgent) {
+        $agent = $getAgent();
+        // Pass agent as first parameter to match controller signature
+        return app(AgentTransactionController::class)->create($agent, $request);
+    })->name('transactions.create');
+    
+    // Store transaction (process transfer)
+    Route::post('/transactions', function (Request $request) use ($getAgent) {
+        $agent = $getAgent();
+        return app(AgentTransactionController::class)->store($request, $agent);
+    })->name('transactions.store');
+    
     Route::get('/transactions/{transaction}', function (App\Models\Agent_Transaction $transaction) use ($getAgent) {
         $agent = $getAgent();
         return app(AgentTransactionController::class)->show($agent, $transaction);
@@ -376,10 +407,16 @@ Route::middleware(['auth'])->group(function () {
         $accountStatus = $user->status ?? 'pending';
         $accountName = $user->name ?? 'User';
         
+        // Get bank accounts for cash in/out
+        $bankAccounts = App\Models\UserBankAccount::where('user_id', $user->id)
+            ->where('status', 'verified')
+            ->with('currency')
+            ->get();
+        
         // Get unread notifications count from database using Laravel's Notifiable trait
         $unreadCount = $user->unreadNotifications()->count();
         
-        return view('dashboard', compact('transfers', 'totalTransfers', 'lastTransferStatus', 'unreadCount', 'accountBalance', 'balanceCurrency', 'accountStatus', 'accountName'));
+        return view('dashboard', compact('transfers', 'totalTransfers', 'lastTransferStatus', 'unreadCount', 'accountBalance', 'balanceCurrency', 'accountStatus', 'accountName', 'bankAccounts'));
     })->name('dashboard');
     
     // App routes with 'app.' prefix for views
@@ -465,11 +502,16 @@ Route::middleware(['auth'])->group(function () {
 // ========================================================================
 
 Route::middleware(['auth'])->group(function () {
-    // Auth logout
+    // Auth logout (both POST and GET for flexibility)
     Route::post('/auth/logout', [AuthController::class, 'logout'])->name('auth.logout');
+    Route::get('/auth/logout', [AuthController::class, 'logout'])->name('auth.logout.get');
     Route::get('/profile', function (Request $request) {
         $user = Auth::user();
-        $primaryAccount = $user->bankAccounts()->first();
+        // Get the first verified bank account (card)
+        $primaryAccount = $user->bankAccounts()
+            ->where('status', 'verified')
+            ->orderBy('verified_at', 'desc')
+            ->first();
         return view('profile', compact('user', 'primaryAccount'));
     })->name('profile.show');
     Route::post('/profile', function (Request $request) {
@@ -510,6 +552,10 @@ Route::middleware(['auth'])->group(function () {
     // Bank Account actions
     Route::post('/bank-accounts', [UserBankAccountController::class, 'store'])->name('bank-accounts.store');
     Route::delete('/bank-accounts/{id}', [UserBankAccountController::class, 'destroy'])->name('bank-accounts.destroy');
+    
+    // Wallet actions (Cash In/Cash Out)
+    Route::post('/wallet/cash-in', [App\Http\Controllers\WalletController::class, 'cashIn'])->name('wallet.cash-in');
+    Route::post('/wallet/cash-out', [App\Http\Controllers\WalletController::class, 'cashOut'])->name('wallet.cash-out');
     
     // Notification actions
     Route::post('/notifications/{id}/read', [NotificationController::class, 'markAsRead'])->name('notifications.markAsRead');

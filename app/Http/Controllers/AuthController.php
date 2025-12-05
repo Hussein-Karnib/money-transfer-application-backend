@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use App\Models\Role;
 use App\Models\Agent;
+use App\Models\UserBankAccount;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
@@ -131,6 +132,19 @@ class AuthController extends Controller
                 'email'    => $data['email'],
                 'password' => Hash::make($data['password']),
                 'role_id'  => $roleId,
+            ]);
+            
+            // Auto-generate a card (bank account) for the new user
+            // This will be in 'pending' status until admin verifies it
+            $cardNumber = $this->generateCardNumber();
+            $bankName = 'My USD Visa'; // Default currency USD
+            
+            \App\Models\UserBankAccount::create([
+                'user_id'        => $user->id,
+                'bank_name'      => $bankName,
+                'account_number' => $cardNumber,
+                'currency_code'  => 'USD', // Default currency
+                'status'         => 'pending', // Will be verified by admin
             ]);
         });
 
@@ -309,6 +323,38 @@ class AuthController extends Controller
             'user'  => $user,
             'token' => $token,
         ]);
+    }
+
+    /**
+     * Generate a random, Luhn-valid 16-digit Visa style card number.
+     * This is for DEMO purposes (no real cards in dev).
+     */
+    private function generateCardNumber(): string
+    {
+        // Start with 15 digits (Visa usually starts with 4)
+        $digits = '4';
+        for ($i = 0; $i < 14; $i++) {
+            $digits .= random_int(0, 9);
+        }
+
+        // Compute Luhn check digit
+        $sum = 0;
+        $alt = true; // start doubling from the rightmost of the 15
+        for ($i = strlen($digits) - 1; $i >= 0; $i--) {
+            $n = intval($digits[$i]);
+            if ($alt) {
+                $n *= 2;
+                if ($n > 9) {
+                    $n -= 9;
+                }
+            }
+            $sum += $n;
+            $alt = !$alt;
+        }
+
+        $checkDigit = (10 - ($sum % 10)) % 10;
+
+        return $digits . $checkDigit;
     }
 
 }

@@ -38,13 +38,28 @@
                     <dt class="col-sm-3">Total to Pay:</dt>
                     <dd class="col-sm-9">{{ number_format($transfer->total_amount, 2) }} {{ $transfer->currency_from }}</dd>
 
-                    @php
-                        $offersEvent = $transfer->events?->first(function($event){ return str_contains($event->note ?? '', 'Offers'); });
-                    @endphp
-                    @if($offersEvent)
                     <dt class="col-sm-3">Selected Offers:</dt>
-                    <dd class="col-sm-9">{{ $offersEvent->note }}</dd>
-                    @endif
+                    <dd class="col-sm-9">
+                        @if($transfer->offers && count($transfer->offers) > 0)
+                            <div class="d-flex flex-column gap-2">
+                                @foreach($transfer->offers as $offer)
+                                    <div class="d-flex justify-content-between align-items-center border rounded p-2">
+                                        <span class="badge bg-primary badge-modern">{{ $offer['name'] ?? $offer }}</span>
+                                        <strong class="text-success">
+                                            {{ number_format($offer['price'] ?? 0, 2) }} {{ $transfer->currency_from }}
+                                        </strong>
+                                    </div>
+                                @endforeach
+                                <div class="mt-2 pt-2 border-top">
+                                    <strong>Total Offers Cost: 
+                                        <span class="text-primary">{{ number_format($transfer->offers_total ?? 0, 2) }} {{ $transfer->currency_from }}</span>
+                                    </strong>
+                                </div>
+                            </div>
+                        @else
+                            <span class="text-muted">None</span>
+                        @endif
+                    </dd>
 
                     <dt class="col-sm-3">Beneficiary:</dt>
                     <dd class="col-sm-9">

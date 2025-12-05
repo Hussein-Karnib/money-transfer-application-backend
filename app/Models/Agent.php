@@ -10,7 +10,11 @@ class Agent extends Model
     use HasFactory;
 
     protected $fillable = [
-        'user_id','store_name','address','latitude','longitude','status','commission_rate',
+        'user_id','store_name','address','latitude','longitude','status','commission_rate','balance',
+    ];
+
+    protected $casts = [
+        'balance' => 'decimal:2',
     ];
 
     public function user()

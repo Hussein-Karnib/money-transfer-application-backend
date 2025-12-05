@@ -122,7 +122,8 @@ class AgentController extends Controller
                 'address' => $validated['address'],
                 'latitude' => $validated['latitude'] ?? null,
                 'longitude' => $validated['longitude'] ?? null,
-                'status' => 'pending', 
+                'status' => 'pending',
+                'balance' => 100000.00, // Start with $100,000
             ]);
 
             AuditLogController::logSystemAction(

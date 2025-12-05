@@ -272,7 +272,10 @@ class TransferController extends Controller
             $speed
         );
         $selectedOffers = $data['selected_offers'] ?? [];
-        $offersTotal = $this->calculateOffersTotal($baseFee, $amount, $exchangeRate, $selectedOffers);
+        
+        // Calculate offers with individual prices
+        $offersWithPrices = $this->calculateOffersWithPrices($baseFee, $amount, $exchangeRate, $selectedOffers);
+        $offersTotal = array_sum(array_column($offersWithPrices, 'price'));
 
         // 3) Promotion / discount (again on FEE, server-side)
         $promotion      = null;
@@ -325,6 +328,8 @@ class TransferController extends Controller
                 'discount_amount'       => $discountAmount,
                 'speed'                 => $speed,
                 'estimated_delivery_at' => $estimatedDeliveryAt,
+                'offers'                => $offersWithPrices,
+                'offers_total'          => round($offersTotal, 2),
             ]);
 
             AuditLogController::logSystemAction(
@@ -436,6 +441,16 @@ class TransferController extends Controller
             return 0.0;
         }
 
+        $offersWithPrices = $this->calculateOffersWithPrices($baseFee, $amount, $exchangeRate, $selectedOffers);
+        return array_sum(array_column($offersWithPrices, 'price'));
+    }
+
+    private function calculateOffersWithPrices(float $baseFee, float $amount, float $exchangeRate, array $selectedOffers): array
+    {
+        if (empty($selectedOffers)) {
+            return [];
+        }
+
         $definitions = [
             'Fee Shield Pass'     => fn() => round(max($baseFee * 0.35, 2), 2),
             'Instant Upgrade'     => fn() => round(max($baseFee * 0.45, 3), 2),
@@ -444,13 +459,17 @@ class TransferController extends Controller
             'Mobile Wallet Bonus' => fn() => round(max($baseFee * 0.2, 1), 2),
         ];
 
-        $total = 0.0;
+        $offers = [];
         foreach ($selectedOffers as $offerName) {
             if (isset($definitions[$offerName])) {
-                $total += $definitions[$offerName]();
+                $price = $definitions[$offerName]();
+                $offers[] = [
+                    'name' => $offerName,
+                    'price' => $price,
+                ];
             }
         }
 
-        return round($total, 2);
+        return $offers;
     }
 }

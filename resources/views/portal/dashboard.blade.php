@@ -14,19 +14,19 @@
     <div class="col-md-3">
         <div class="stat-card primary">
             <div class="d-flex justify-content-between align-items-center mb-2">
-                <i class="bi bi-cash-coin" style="font-size: 2rem; color: #667eea;"></i>
+                <i class="bi bi-wallet2" style="font-size: 2rem; color: #667eea;"></i>
             </div>
-            <div class="stat-value">${{ number_format($todayCommission, 2) }}</div>
-            <div class="stat-label">Today's Commission</div>
+            <div class="stat-value">${{ number_format($agent->balance ?? 100000, 2) }}</div>
+            <div class="stat-label">Agent Balance</div>
         </div>
     </div>
     <div class="col-md-3">
         <div class="stat-card success">
             <div class="d-flex justify-content-between align-items-center mb-2">
-                <i class="bi bi-calendar-month" style="font-size: 2rem; color: #48bb78;"></i>
+                <i class="bi bi-cash-coin" style="font-size: 2rem; color: #48bb78;"></i>
             </div>
-            <div class="stat-value">${{ number_format($monthlyCommission, 2) }}</div>
-            <div class="stat-label">This Month</div>
+            <div class="stat-value">${{ number_format($todayCommission, 2) }}</div>
+            <div class="stat-label">Today's Commission</div>
         </div>
     </div>
     <div class="col-md-3">
