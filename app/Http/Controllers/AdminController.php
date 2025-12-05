@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Admin;
 use App\Models\User;
+use App\Models\Agent;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
@@ -18,11 +19,8 @@ class AdminController extends Controller
      */
     public function index()
     {
-        // Eager load the 'user' relationship to display names and emails
         $admins = Admin::with('user')->paginate(10);
 
-        // If using an API: return response()->json($admins);
-        // If using Blade:
         return view('admin.manage_admins.index', compact('admins'));
     }
 
@@ -40,27 +38,21 @@ class AdminController extends Controller
      */
     public function store(Request $request)
     {
-        // 1. Validate both User details and Admin details
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
-            'privilege_level' => ['required', 'integer', 'min:1', 'max:5'], // Assuming 1-5 levels
+            'privilege_level' => ['required', 'integer', 'min:1', 'max:5'],
         ]);
 
-        // 2. Use a Transaction: If creating the Admin fails, the User won't be created either.
         DB::transaction(function () use ($validated) {
             
-            // A. Create the User
             $user = User::create([
                 'name' => $validated['name'],
                 'email' => $validated['email'],
                 'password' => Hash::make($validated['password']),
-                // You might want to set a 'role_id' here if you are using the Roles table from your schema
-                // 'role_id' => 1 // e.g., 1 for Admin
             ]);
 
-            // B. Create the Admin entry linked to that User
             Admin::create([
                 'user_id' => $user->id,
                 'privilege_level' => $validated['privilege_level'],
@@ -109,11 +101,7 @@ class AdminController extends Controller
      */
     public function destroy(Admin $admin)
     {
-        // Option A: Delete ONLY the admin record (Demote to regular user)
         $admin->delete();
-
-        // Option B: Delete the User entirely (Uncomment if desired)
-        // $admin->user->delete(); 
 
         return redirect()->route('admins.index')->with('success', 'Admin privileges revoked.');
     }
@@ -123,8 +111,8 @@ class AdminController extends Controller
      */
     public function approvals()
     {
-        $pendingAgents = \App\Models\Agent::where('status', 'pending')->with('user')->get();
-        $newUsers = \App\Models\User::where('status', 'pending')->orderBy('created_at', 'desc')->limit(10)->get();
+        $pendingAgents = Agent::where('status', 'pending')->with('user')->get();
+        $newUsers = User::where('status', 'pending')->orderBy('created_at', 'desc')->limit(10)->get();
         
         return view('admin.approvals', compact('pendingAgents', 'newUsers'));
     }

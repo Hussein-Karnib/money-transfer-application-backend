@@ -153,6 +153,9 @@
                             <span class="badge bg-danger badge-modern ms-2">{{ $unreadCount }}</span>
                         @endif
                     </a>
+                    <a href="{{ route('reviews.create') }}" class="btn btn-outline-modern btn-modern">
+                        <i class="bi bi-chat-dots me-2"></i> Send Feedback
+                    </a>
                 </div>
             </div>
         </div>

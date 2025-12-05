@@ -3,7 +3,6 @@
 @section('title', 'Transaction Details')
 
 @section('content')
-<<<<<<< Updated upstream
 <div class="page-header">
     <div class="container-fluid px-4">
         <div class="d-flex justify-content-between align-items-center">
@@ -160,42 +159,3 @@
 </div>
 @endsection
 
-=======
-<h1 class="h4 mb-3">Transaction #{{ $transaction->id }}</h1>
-
-<div class="card shadow-sm mb-3">
-    <div class="card-body">
-        <dl class="row mb-0">
-            <dt class="col-sm-3">Type</dt>
-            <dd class="col-sm-9 text-uppercase">{{ str_replace('_', ' ', $transaction->type) }}</dd>
-
-            <dt class="col-sm-3">Amount</dt>
-            <dd class="col-sm-9">{{ number_format($transaction->amount, 2) }}</dd>
-
-            <dt class="col-sm-3">Commission</dt>
-            <dd class="col-sm-9">{{ number_format($transaction->commission, 2) }}</dd>
-
-            <dt class="col-sm-3">Processed At</dt>
-            <dd class="col-sm-9">{{ $transaction->processed_at }}</dd>
-        </dl>
-    </div>
-</div>
-
-@if($transaction->transfer)
-    <div class="card shadow-sm mb-3">
-        <div class="card-body">
-            <h5>Linked Transfer</h5>
-            <dl class="row mb-0">
-                <dt class="col-sm-3">Reference</dt>
-                <dd class="col-sm-9">{{ $transaction->transfer->reference }}</dd>
-
-                <dt class="col-sm-3">Status</dt>
-                <dd class="col-sm-9 text-capitalize">{{ $transaction->transfer->status }}</dd>
-            </dl>
-        </div>
-    </div>
-@endif
-
-<a href="{{ route('portal.transactions.index', $agent) }}" class="btn btn-outline-secondary">Back</a>
-@endsection
->>>>>>> Stashed changes

@@ -7,10 +7,7 @@ use Illuminate\Http\Request;
 
 class AuditLogController extends Controller
 {
-    /**
-     * Display a listing of the audit logs.
-     * Includes filtering options for the Admin.
-     */
+
     public function index(Request $request)
     {
         $query = AuditLog::with('user')->latest();
@@ -36,10 +33,7 @@ class AuditLogController extends Controller
         return view('admin.auditTable', ['data' => $data]);
     }
 
-    /**
-     * Display the specified audit log details.
-     * Useful for inspecting the 'metadata' JSON column.
-     */
+
     public function show($id)
     {
         $data = AuditLog::with('user')->findOrFail($id);
@@ -47,13 +41,11 @@ class AuditLogController extends Controller
         return view('admin.auditShow', ['data' => $data]);
     }
 
-    /**
-     * Remove logs older than a specific date (Maintenance/Pruning).
-     */
+
     public function prune(Request $request)
     {
         $request->validate([
-            'days_retention' => 'required|integer|min:30', // keep at least 30 days
+            'days_retention' => 'required|integer|min:30',
         ]);
 
         $date = now()->subDays($request->days_retention);
@@ -64,9 +56,7 @@ class AuditLogController extends Controller
             ->with('success', "Pruned $deletedCount logs older than {$request->days_retention} days.");
     }
 
-    /**
-     * Static helper to log an action from anywhere.
-     */
+
     public static function logSystemAction(
         ?int $user_id,
         string $action,
@@ -76,7 +66,7 @@ class AuditLogController extends Controller
     ): void {
         AuditLog::create([
             'user_id'    => $user_id,
-            'actor_type' => 'system',        // or 'user'/'admin' if you want to extend this
+            'actor_type' => 'system',
             'actor_id'   => $user_id,
             'action'     => $action,
             'table_name' => $table_name,
