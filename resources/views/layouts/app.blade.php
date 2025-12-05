@@ -494,11 +494,18 @@
                 </ul>
 
                 <div class="user-menu">
-                    <div class="user-avatar">
-                        {{ strtoupper(substr(auth()->user()->name ?? 'U', 0, 1)) }}
-                    </div>
-                    <span class="text-dark fw-semibold">{{ auth()->user()->name ?? 'User' }}</span>
-                    <form method="POST" action="{{ route('auth.logout') }}" class="d-inline">
+                    <a href="{{ route('profile.show') }}" class="d-flex align-items-center text-decoration-none">
+                        @php $avatar = auth()->user()->avatar_url ?? null; @endphp
+                        @if($avatar)
+                            <img src="{{ $avatar }}" alt="Avatar" class="user-avatar" style="object-fit: cover;">
+                        @else
+                            <div class="user-avatar">
+                                {{ strtoupper(substr(auth()->user()->name ?? 'U', 0, 1)) }}
+                            </div>
+                        @endif
+                        <span class="text-dark fw-semibold ms-2">{{ auth()->user()->name ?? 'User' }}</span>
+                    </a>
+                    <form method="POST" action="{{ route('auth.logout') }}" class="d-inline ms-3">
                         @csrf
                         <button class="btn btn-sm btn-outline-modern btn-outline-danger">
                             <i class="bi bi-box-arrow-right me-1"></i> Logout

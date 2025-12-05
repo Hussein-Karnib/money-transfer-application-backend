@@ -18,6 +18,7 @@ use App\Http\Controllers\UserVerificationController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\AgentTransactionController;
+use Illuminate\Support\Facades\Storage;
 
 Route::get('/auth/{provider}/callback', [SocialAuthController::class, 'callback'])
     ->name('social.callback');
@@ -386,7 +387,7 @@ Route::middleware(['auth'])->group(function () {
         })->name('transfers.index');
         
         // Create transfer view
-        Route::get('/transfers/create', function () {
+        Route::get('/transfers/create', function (Request $request) {
             // Load beneficiaries and currencies for the form from database
             $user = Auth::user();
             $beneficiaries = App\Models\Beneficiary::where('user_id', $user->id)
@@ -394,8 +395,17 @@ Route::middleware(['auth'])->group(function () {
                 ->orderBy('full_name')
                 ->get();
             $currencies = App\Models\Currency::orderBy('code')->get();
+            $methods = App\Models\Transfer_Method::all();
+            $prefill = [
+                'amount' => $request->input('amount'),
+                'currency_from' => $request->input('currency_from'),
+                'currency_to' => $request->input('currency_to'),
+                'speed' => $request->input('speed'),
+                'transfer_method_id' => $request->input('transfer_method_id'),
+                'selected_offers' => $request->input('selected_offers', []),
+            ];
             
-            return view('transfers.create', compact('beneficiaries', 'currencies', 'methods'));
+            return view('transfers.create', compact('beneficiaries', 'currencies', 'methods', 'prefill'));
         })->name('transfers.create');
         
         // Search transfer services
@@ -442,6 +452,32 @@ Route::middleware(['auth'])->group(function () {
 Route::middleware(['auth'])->group(function () {
     // Auth logout
     Route::post('/auth/logout', [AuthController::class, 'logout'])->name('auth.logout');
+    Route::get('/profile', function (Request $request) {
+        $user = Auth::user();
+        $primaryAccount = $user->bankAccounts()->first();
+        return view('profile', compact('user', 'primaryAccount'));
+    })->name('profile.show');
+    Route::post('/profile', function (Request $request) {
+        $user = Auth::user();
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'phone' => ['nullable', 'string', 'max:50'],
+            'avatar' => ['nullable', 'image', 'max:2048'],
+        ]);
+
+        $payload = [
+            'name' => $data['name'],
+            'phone' => $data['phone'] ?? $user->phone,
+        ];
+
+        if ($request->hasFile('avatar')) {
+            $path = $request->file('avatar')->store('avatars', 'public');
+            $payload['avatar_url'] = Storage::url($path);
+        }
+
+        $user->update($payload);
+        return redirect()->route('profile.show')->with('success', 'Profile updated.');
+    })->name('profile.update');
     
     // Transfer actions
     Route::get('/transfers/summary', [TransferController::class, 'summary'])->name('transfers.summary');

@@ -326,9 +326,23 @@
                     
                     <!-- Action Buttons -->
                     <div class="d-grid gap-2 mt-4">
-                        <a href="{{ route('app.transfers.create') }}" class="btn btn-primary-modern btn-modern">
-                            <i class="bi bi-send me-2"></i>Create Transfer with These Options
-                        </a>
+                        <form method="GET" action="{{ route('app.transfers.create') }}">
+                            <input type="hidden" name="amount" value="{{ $amount }}">
+                            <input type="hidden" name="currency_from" value="{{ $currencyFrom }}">
+                            <input type="hidden" name="currency_to" value="{{ $currencyTo }}">
+                            <input type="hidden" name="speed" value="{{ $speed }}">
+                            @if($methodId)
+                                <input type="hidden" name="transfer_method_id" value="{{ $methodId }}">
+                            @endif
+                            @if(isset($selectedOffers))
+                                @foreach($selectedOffers as $offerName)
+                                    <input type="hidden" name="selected_offers[]" value="{{ $offerName }}">
+                                @endforeach
+                            @endif
+                            <button type="submit" class="btn btn-primary-modern btn-modern w-100">
+                                <i class="bi bi-send me-2"></i>Create Transfer with These Options
+                            </button>
+                        </form>
                     </div>
                 </div>
             </div>
