@@ -3,6 +3,7 @@
 @section('title', 'Process Transfer')
 
 @section('content')
+<<<<<<< Updated upstream
 <div class="page-header">
     <div class="container-fluid px-4">
         <h1>
@@ -150,3 +151,43 @@
 </script>
 @endsection
 
+=======
+<h1 class="h4 mb-3">Process Transfer – {{ $agent->store_name }}</h1>
+
+<div class="card shadow-sm">
+    <div class="card-body">
+        <form action="{{ route('portal.transactions.store', $agent) }}" method="POST">
+            @csrf
+
+            <div class="mb-3">
+                <label class="form-label">Transfer Reference</label>
+                <input type="text" name="transfer_reference" class="form-control"
+                       value="{{ old('transfer_reference') }}" required>
+                <small class="text-muted">
+                    Enter the transfer reference provided by the sender / system.
+                </small>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label d-block">Operation Type</label>
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="radio"
+                           name="type" id="cash_in" value="cash_in"
+                           {{ old('type', 'cash_in') === 'cash_in' ? 'checked' : '' }}>
+                    <label class="form-check-label" for="cash_in">Cash In</label>
+                </div>
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="radio"
+                           name="type" id="cash_out" value="cash_out"
+                           {{ old('type') === 'cash_out' ? 'checked' : '' }}>
+                    <label class="form-check-label" for="cash_out">Cash Out</label>
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Process</button>
+            <a href="{{ route('portal.transactions.index', $agent) }}" class="btn btn-outline-secondary">Back</a>
+        </form>
+    </div>
+</div>
+@endsection
+>>>>>>> Stashed changes
