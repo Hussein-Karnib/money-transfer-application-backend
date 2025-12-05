@@ -15,7 +15,7 @@ class ReviewController extends Controller
     public function index()
     {
         $reviews = Review::with('user')->latest()->paginate(15);
-        return view('admin.reviews.index', compact('reviews'));
+        return view('admin.reviews.feedback', compact('reviews'));
     }
 
     /**
@@ -37,25 +37,21 @@ class ReviewController extends Controller
 
         $user = Auth::user();
 
-        // 1. Save to Database
-        $review = Review::create([
+        Review::create([
             'user_id' => $user->id,
             'message' => $request->message,
         ]);
 
-        // 2. Log to CSV
-        // Format: Timestamp, User ID, User Name, User Email, Message
         $csvLine = [
             now()->toDateTimeString(),
             $user->id,
             $user->name,
             $user->email,
-            str_replace(["\r", "\n", ","], [" ", " ", ";"], $request->message) // basic sanitization for CSV
+            str_replace(["\r", "\n", ","], [" ", " ", ";"], $request->message)
         ];
 
         $csvContent = implode(',', $csvLine) . "\n";
         
-        // Append to storage/app/feedback.csv
         $fileName = 'feedback.csv';
         if (!Storage::exists($fileName)) {
             Storage::put($fileName, "Date,User ID,User Name,User Email,Message\n");

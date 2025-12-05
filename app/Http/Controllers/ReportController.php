@@ -18,7 +18,6 @@ class ReportController extends Controller
 
     public function index()
     {
-        // Show newest reports first
         $reports = Report::with('author')->latest('generated_at')->paginate(10);
         return view('admin.reports', compact('reports'));
     }
@@ -106,9 +105,7 @@ class ReportController extends Controller
                 $row[] = $item->id;
                 $row[] = $item->user ? $item->user->name : 'N/A';
                 $row[] = $item->user ? $item->user->email : 'N/A';
-                // Sanitize message for CSV
-                $messageJSON = json_encode($item->message); // Escape quotes/newlines using JSON, or simple replace
-                // Simple replace is safely standard for simple CSV exports
+                $messageJSON = json_encode($item->message);
                 $safeMessage = str_replace(["\r", "\n", ","], [" ", " ", ";"], $item->message);
                 $row[] = $safeMessage;
                 $row[] = $item->created_at->toDateTimeString();
