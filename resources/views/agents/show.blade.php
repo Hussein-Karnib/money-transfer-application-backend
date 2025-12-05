@@ -26,7 +26,7 @@
             <a class="navbar-brand" href="{{ route('home') }}">Money Transfer</a>
             <div class="navbar-nav ms-auto">
                 <a class="nav-link" href="{{ route('home') }}">Home</a>
-                <a class="nav-link" href="{{ route('agents.map') }}">Find Agents</a>
+                <a class="nav-link" href="{{ route('agents.map_all') }}">Find Agents</a>
             </div>
         </div>
     </nav>
@@ -48,6 +48,12 @@
     <div class="container mb-5">
         <div class="row">
             <div class="col-md-8">
+                <div class="mb-3">
+                    <a href="{{ route('agents.map') }}" class="btn btn-outline-secondary btn-sm">
+                        Back to list
+                    </a>
+                </div>
+
                 <div class="card mb-4 info-card">
                     <div class="card-header bg-white">
                         <h5 class="mb-0">Store Information</h5>
@@ -66,8 +72,14 @@
                             @if($agent->latitude && $agent->longitude)
                             <dt class="col-sm-3">Location:</dt>
                             <dd class="col-sm-9">
+                                {{-- Old external link:
                                 <a href="https://www.google.com/maps?q={{ $agent->latitude }},{{ $agent->longitude }}" 
                                    target="_blank" class="btn btn-sm btn-outline-primary">
+                                    View on Map
+                                </a>
+                                --}}
+                                <a href="{{ route('agents.map.single', $agent->id) }}" 
+                                   class="btn btn-sm btn-outline-primary">
                                     View on Map
                                 </a>
                             </dd>
@@ -131,7 +143,7 @@
                     </div>
                     <div class="card-body">
                         <div class="d-grid gap-2">
-                            <a href="{{ route('agents.map') }}" class="btn btn-primary">
+                            <a href="{{ route('agents.map_all') }}" class="btn btn-primary">
                                 Find More Agents
                             </a>
                             @auth
@@ -159,4 +171,3 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
-

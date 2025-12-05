@@ -326,9 +326,9 @@
                 <div class="col-md-6 text-md-end">
                     <h6 class="mb-3">Quick Links</h6>
                     <div class="d-flex flex-column flex-md-row gap-3 justify-content-md-end">
-                        <a href="{{ route('agents.map') }}" class="text-white text-decoration-none">
+                          <a href="{{ route('agents.map_all') }}" class="text-white text-decoration-none">
                             <i class="bi bi-geo-alt me-1"></i>Find Agents
-                        </a>
+                          </a>
                         <a href="{{ route('login') }}" class="text-white text-decoration-none">
                             <i class="bi bi-box-arrow-in-right me-1"></i>Login
                         </a>

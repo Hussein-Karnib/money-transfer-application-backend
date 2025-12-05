@@ -1,5 +1,6 @@
 @extends('layouts.app')
 
+<<<<<<< Updated upstream
 @section('title', 'Transaction History')
 
 @section('content')
@@ -115,3 +116,61 @@
 @endif
 @endsection
 
+=======
+@section('title', 'Store Transactions')
+
+@section('content')
+<h1 class="h4 mb-3">Store Transactions – {{ $agent->store_name }}</h1>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <small class="text-muted">History of cash-in / cash-out processed by this store.</small>
+    </div>
+    <a href="{{ route('portal.transactions.create', $agent) }}" class="btn btn-primary">
+        Process Transfer
+    </a>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-body p-0">
+        <table class="table mb-0 table-hover">
+            <thead>
+            <tr>
+                <th>#</th>
+                <th>Reference</th>
+                <th>Type</th>
+                <th>Amount</th>
+                <th>Commission</th>
+                <th>Processed At</th>
+                <th class="text-end">Actions</th>
+            </tr>
+            </thead>
+            <tbody>
+            @forelse($transactions as $tx)
+                <tr>
+                    <td>{{ $tx->id }}</td>
+                    <td>{{ optional($tx->transfer)->reference }}</td>
+                    <td class="text-uppercase">{{ str_replace('_', ' ', $tx->type) }}</td>
+                    <td>{{ number_format($tx->amount, 2) }}</td>
+                    <td>{{ number_format($tx->commission, 2) }}</td>
+                    <td>{{ $tx->processed_at }}</td>
+                    <td class="text-end">
+                        <a href="{{ route('portal.transactions.show', [$agent, $tx]) }}"
+                           class="btn btn-sm btn-outline-secondary">
+                            View
+                        </a>
+                    </td>
+                </tr>
+            @empty
+                <tr><td colspan="7" class="text-center text-muted">No transactions yet.</td></tr>
+            @endforelse
+            </tbody>
+        </table>
+    </div>
+
+    <div class="card-footer">
+        {{ $transactions->links() }}
+    </div>
+</div>
+@endsection
+>>>>>>> Stashed changes

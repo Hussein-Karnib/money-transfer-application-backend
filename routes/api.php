@@ -126,8 +126,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/me',  [UserController::class, 'me']);
     Route::put('/me',  [UserController::class, 'update']);
     
-Route::middleware(['auth:sanctum'])->group(function () {
-
     // User KYC submit + view (any logged-in user)
     Route::post('/kyc', [UserVerificationController::class, 'store']);
     Route::get('/kyc',  [UserVerificationController::class, 'show']);
@@ -152,8 +150,6 @@ Route::middleware('kyc_verified')->prefix('bank-accounts')->group(function () {
 // Verification by Admin/Agent (no KYC needed on THEIR account)
 Route::middleware(['auth:sanctum', 'role:Admin'])
     ->post('/bank-accounts/{id}/verify', [UserBankAccountController::class, 'verify']);
-
-});
 
 
     // ---- Beneficiaries ----

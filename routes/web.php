@@ -18,6 +18,7 @@ use App\Http\Controllers\UserVerificationController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\AgentTransactionController;
+use App\Http\Controllers\GoogleAuthController;
 use Illuminate\Support\Facades\Storage;
 
 Route::get('/auth/{provider}/callback', [SocialAuthController::class, 'callback'])
@@ -47,6 +48,12 @@ Route::get('/agents', function (Request $request) {
     
     return view('agents.map', compact('agents'));
 })->name('agents.map');
+
+// All-agents Leaflet map with search
+Route::get('/agents/map-all', [AgentController::class, 'mapAll'])->name('agents.map_all');
+
+// Dedicated internal Leaflet map for a single agent (future-friendly for collections)
+Route::get('/agents/{agent}/map', [AgentController::class, 'showMap'])->name('agents.map.single');
 
 // Agent registration form view
 Route::get('/partner/register', function (Request $request) {
@@ -511,3 +518,9 @@ Route::middleware(['auth'])->group(function () {
     // Transfer cancel action
     Route::post('/transfers/{transfer}/cancel', [TransferController::class, 'cancel'])->name('transfers.cancel');
 });
+
+
+
+//google auth routes
+Route::get('/auth/google/redirect', [GoogleAuthController::class, 'redirectToGoogle'])->name('google.redirect');
+Route::get('/auth/google/callback', [GoogleAuthController::class, 'handleGoogleCallback'])->name('google.callback');
