@@ -178,6 +178,7 @@ class AuthController extends Controller
             $request->session()->regenerate();
             // Redirect based on user role
             $user = Auth::user();
+            $user->load('role');
             
             if ($user->role) {
                 $roleName = strtolower($user->role->name);
@@ -196,8 +197,8 @@ class AuthController extends Controller
                 }
             }
             
-            // Regular users go to regular dashboard
-            return redirect()->intended(route('dashboard'))->with('success', 'Welcome back!');
+            // Regular users (customer/user) go to user dashboard
+            return redirect()->route('dashboard')->with('success', 'Welcome back!');
         }
 
         return back()->withErrors([

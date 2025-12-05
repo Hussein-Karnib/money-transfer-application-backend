@@ -369,23 +369,25 @@ class TransferController extends Controller
         ]);
     }
 
-    public function cancel(int $id): JsonResponse
+    public function cancel(int $id)
     {
-        $transfer = $this->transferService->cancelTransfer($id, Auth::id());
+        try {
+            $transfer = $this->transferService->cancelTransfer($id, Auth::id());
 
-        AuditLogController::logSystemAction(
-            Auth::id(),
-            'cancel_transfer',
-            'transfers',
-            $id,
-            ['status' => 'cancelled']
-        );
+            AuditLogController::logSystemAction(
+                Auth::id(),
+                'cancel_transfer',
+                'transfers',
+                $id,
+                ['status' => 'cancelled']
+            );
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Transfer cancelled successfully',
-            'data'    => $transfer->load(['beneficiary.country', 'beneficiary.method', 'events']),
-        ]);
+            return redirect()->route('app.transfers.index')
+                ->with('success', 'Transfer cancelled successfully.');
+        } catch (\Exception $e) {
+            return redirect()->back()
+                ->with('error', $e->getMessage());
+        }
     }
 
     public function refund(int $id): JsonResponse

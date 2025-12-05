@@ -23,6 +23,11 @@ use Illuminate\Support\Facades\Storage;
 Route::get('/auth/{provider}/callback', [SocialAuthController::class, 'callback'])
     ->name('social.callback');
 
+// Google OAuth redirect
+Route::get('/auth/google/redirect', function () {
+    return app(SocialAuthController::class)->redirect('google');
+})->name('google.redirect');
+
 // ========================================================================
 // 1. PUBLIC ROUTES (No Login Required)
 // ========================================================================
@@ -44,7 +49,9 @@ Route::get('/agents', function (Request $request) {
 })->name('agents.map');
 
 // Agent registration form view
-Route::get('/partner/register', function () {
+Route::get('/partner/register', function (Request $request) {
+    // Ensure session is started to generate CSRF token
+    $request->session()->regenerateToken();
     return view('agents.create');
 })->name('agents.register');
 
@@ -244,10 +251,10 @@ Route::middleware(['auth', 'role:agent'])->prefix('portal')->name('portal.')->gr
         $query = $agent->transactions();
 
         // Filter by date range if provided
-        if ($request->has('from')) {
+        if ($request->filled('from')) {
             $query->whereDate('processed_at', '>=', $request->from);
         }
-        if ($request->has('to')) {
+        if ($request->filled('to')) {
             $query->whereDate('processed_at', '<=', $request->to);
         }
 
@@ -332,6 +339,7 @@ Route::middleware(['auth'])->group(function () {
     // Dashboard - Load data from database (redirect based on role)
     Route::get('/dashboard', function (Request $request) {
         $user = Auth::user();
+        $user->load('role');
         
         // Redirect admins to admin dashboard
         if ($user->role && strtolower($user->role->name) === 'admin') {
@@ -346,7 +354,7 @@ Route::middleware(['auth'])->group(function () {
             }
         }
         
-        // Regular user dashboard
+        // Regular user dashboard (customer/user)
         // Get transfers from database
         $transfers = App\Models\Transfer::where('sender_id', $user->id)
             ->with(['beneficiary.country', 'beneficiary.method', 'events', 'payment'])
@@ -377,7 +385,7 @@ Route::middleware(['auth'])->group(function () {
             $query = App\Models\Transfer::where('sender_id', $user->id)
                 ->with(['beneficiary.country', 'beneficiary.method', 'events', 'payment']);
             
-            if ($request->has('status')) {
+            if ($request->has('status') && $request->status !== null && $request->status !== '') {
                 $query->where('status', $request->status);
             }
             

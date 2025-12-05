@@ -322,6 +322,17 @@ class TransferService
             ->where('sender_id', $userId)
             ->firstOrFail();
 
+        // Check if transfer is in a terminal state
+        $terminalStates = ['completed', 'failed', 'refunded'];
+        if (in_array($transfer->status, $terminalStates)) {
+            $statusMessages = [
+                'completed' => 'This transfer has already been completed and cannot be cancelled.',
+                'failed' => 'This transfer has already failed and cannot be cancelled.',
+                'refunded' => 'This transfer has already been refunded and cannot be cancelled.',
+            ];
+            throw new \Exception($statusMessages[$transfer->status] ?? "Transfer cannot be cancelled. Current status: {$transfer->status}");
+        }
+
         // Only allow cancellation if transfer is queued or paid
         if (!in_array($transfer->status, ['queued', 'paid'])) {
             throw new \Exception("Transfer cannot be cancelled. Current status: {$transfer->status}");
