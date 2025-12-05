@@ -17,8 +17,9 @@
                 <i class="bi bi-funnel me-2"></i>Search Filters
             </div>
             <div class="card-body">
-                <form method="POST" action="{{ route('transfers.search.post') }}">
+                <form method="POST" action="{{ route('transfers.search.post') }}" id="search-form">
                     @csrf
+                    <div id="offers-hidden-inputs"></div>
                     <div class="mb-3">
                         <label class="form-label-modern">Amount to Send</label>
                         <input type="number" step="0.01" class="form-control form-control-modern" 
@@ -133,11 +134,15 @@
                                 </div>
                                 <div class="col-md-3">
                                     <small class="opacity-75">Fee</small>
-                                    <h4 class="mb-0">{{ number_format($fee, 2) }} {{ $currencyFrom }}</h4>
+                                    <h4 class="mb-0" id="fee-display">{{ number_format($fee, 2) }} {{ $currencyFrom }}</h4>
+                                    <small class="opacity-75" id="offers-breakdown" style="display: none;">
+                                        <span id="base-fee-text">Base: {{ number_format($fee - ($offersTotal ?? 0), 2) }}</span>
+                                        <span id="offers-fee-text"></span>
+                                    </small>
                                 </div>
                                 <div class="col-md-3">
                                     <small class="opacity-75">Total Cost</small>
-                                    <h4 class="mb-0">{{ number_format($totalAmount, 2) }} {{ $currencyFrom }}</h4>
+                                    <h4 class="mb-0" id="total-cost-display">{{ number_format($totalAmount, 2) }} {{ $currencyFrom }}</h4>
                                 </div>
                                 <div class="col-md-3">
                                     <small class="opacity-75">They Receive</small>
@@ -363,14 +368,130 @@
 <script>
     document.addEventListener('DOMContentLoaded', () => {
         const summaryEl = document.getElementById('selected-offers-summary');
-        function refreshSummary() {
-            const checked = Array.from(document.querySelectorAll('.offer-checkbox:checked')).map(cb => cb.value);
-            summaryEl.textContent = checked.length ? checked.join(', ') : 'None';
+        const feeDisplay = document.getElementById('fee-display');
+        const totalCostDisplay = document.getElementById('total-cost-display');
+        const offersBreakdown = document.getElementById('offers-breakdown');
+        const baseFeeText = document.getElementById('base-fee-text');
+        const offersFeeText = document.getElementById('offers-fee-text');
+        
+        // Check if elements exist (only available after search)
+        if (!feeDisplay || !totalCostDisplay) {
+            // If search hasn't been performed, just handle offer summary updates
+            if (summaryEl) {
+                function refreshSummary() {
+                    const checked = Array.from(document.querySelectorAll('.offer-checkbox:checked')).map(cb => cb.value);
+                    summaryEl.textContent = checked.length ? checked.join(', ') : 'None';
+                }
+                document.querySelectorAll('.offer-checkbox').forEach(cb => {
+                    cb.addEventListener('change', refreshSummary);
+                });
+                refreshSummary();
+            }
+            return; // Exit if search hasn't been performed yet
         }
+        
+        // Store base values (calculate base fee without offers)
+        @if(isset($fee) && isset($totalAmount) && isset($amount) && isset($currencyFrom))
+            @php
+                $calculatedBaseFee = $fee - ($offersTotal ?? 0);
+                $calculatedBaseTotal = $totalAmount - ($offersTotal ?? 0);
+            @endphp
+            const baseFee = {{ $calculatedBaseFee }};
+            const baseTotal = {{ $calculatedBaseTotal }};
+            const amount = {{ $amount }};
+            const currencyFrom = '{{ $currencyFrom }}';
+        @else
+            const baseFee = 0;
+            const baseTotal = 0;
+            const amount = 0;
+            const currencyFrom = 'USD';
+        @endif
+        
+        // Offer price definitions (matching server-side calculation)
+        const offerPrices = {
+            'Fee Shield Pass': Math.max(baseFee * 0.35, 2),
+            'Instant Upgrade': Math.max(baseFee * 0.45, 3),
+            'Rate Lock': Math.max(baseFee * 0.25, 1.5),
+            'Cash Pickup Booster': Math.max(baseFee * 0.3, 2),
+            'Mobile Wallet Bonus': Math.max(baseFee * 0.2, 1),
+        };
+        
+        function calculateOffersTotal() {
+            const checked = Array.from(document.querySelectorAll('.offer-checkbox:checked'));
+            let total = 0;
+            checked.forEach(cb => {
+                const offerName = cb.value;
+                if (offerPrices[offerName]) {
+                    total += offerPrices[offerName];
+                }
+            });
+            return Math.round(total * 100) / 100; // Round to 2 decimals
+        }
+        
+        function updateTotals() {
+            const checked = Array.from(document.querySelectorAll('.offer-checkbox:checked')).map(cb => cb.value);
+            if (summaryEl) {
+                summaryEl.textContent = checked.length ? checked.join(', ') : 'None';
+            }
+            
+            const offersTotal = calculateOffersTotal();
+            const newFee = baseFee + offersTotal;
+            const newTotal = baseTotal + offersTotal;
+            
+            // Update displays
+            if (feeDisplay) {
+                feeDisplay.textContent = newFee.toFixed(2) + ' ' + currencyFrom;
+            }
+            if (totalCostDisplay) {
+                totalCostDisplay.textContent = newTotal.toFixed(2) + ' ' + currencyFrom;
+            }
+            
+            // Update breakdown
+            if (offersBreakdown && offersTotal > 0) {
+                offersBreakdown.style.display = 'block';
+                if (baseFeeText) {
+                    baseFeeText.textContent = 'Base: ' + baseFee.toFixed(2);
+                }
+                if (offersFeeText) {
+                    offersFeeText.textContent = ' + Offers: ' + offersTotal.toFixed(2);
+                }
+            } else if (offersBreakdown) {
+                offersBreakdown.style.display = 'none';
+            }
+        }
+        
+        // Add event listeners to all offer checkboxes
         document.querySelectorAll('.offer-checkbox').forEach(cb => {
-            cb.addEventListener('change', refreshSummary);
+            cb.addEventListener('change', updateTotals);
         });
-        refreshSummary();
+        
+        // Update hidden inputs in search form when offers change
+        function updateSearchFormOffers() {
+            const hiddenInputsContainer = document.getElementById('offers-hidden-inputs');
+            if (!hiddenInputsContainer) return;
+            
+            hiddenInputsContainer.innerHTML = '';
+            const checked = Array.from(document.querySelectorAll('.offer-checkbox:checked'));
+            checked.forEach(cb => {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'selected_offers[]';
+                input.value = cb.value;
+                hiddenInputsContainer.appendChild(input);
+            });
+        }
+        
+        // Update search form offers when checkboxes change
+        document.querySelectorAll('.offer-checkbox').forEach(cb => {
+            cb.addEventListener('change', () => {
+                updateTotals();
+                updateSearchFormOffers();
+            });
+        });
+        
+        // Initial update
+        updateTotals();
+        updateSearchFormOffers();
     });
 </script>
 @endpush

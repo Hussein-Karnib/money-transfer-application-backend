@@ -78,6 +78,7 @@ class AgentsSeeder extends Seeder
                     'longitude' => $data['longitude'],
                     'status' => 'approved',
                     'commission_rate' => 0.0100,
+                    'balance' => 100000.00, // Start with $100,000
                 ]
             );
 

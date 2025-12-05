@@ -10,9 +10,14 @@
                 <h1><i class="bi bi-list-ul me-2"></i>Transaction History</h1>
                 <p>View all your processed cash-in and cash-out transactions</p>
             </div>
-            <a href="{{ route('portal.dashboard') }}" class="btn btn-outline-modern btn-modern">
-                <i class="bi bi-arrow-left me-2"></i>Back to Dashboard
-            </a>
+            <div class="d-flex gap-2">
+                <a href="{{ route('portal.transactions.create') }}" class="btn btn-primary-modern btn-modern">
+                    <i class="bi bi-plus-circle me-2"></i>Process Transfer
+                </a>
+                <a href="{{ route('portal.dashboard') }}" class="btn btn-outline-modern btn-modern">
+                    <i class="bi bi-arrow-left me-2"></i>Back to Dashboard
+                </a>
+            </div>
         </div>
     </div>
 </div>
@@ -107,11 +112,15 @@
             <i class="bi bi-inbox" style="font-size: 4rem; color: #cbd5e0;"></i>
             <h4 class="mt-3 mb-2">No Transactions Yet</h4>
             <p class="text-muted">You haven't processed any cash-in or cash-out transactions yet.</p>
-            <a href="{{ route('portal.dashboard') }}" class="btn btn-primary-modern btn-modern mt-3">
-                <i class="bi bi-arrow-left me-2"></i>Go to Dashboard
-            </a>
+            <div class="d-flex gap-2 justify-content-center mt-3">
+                <a href="{{ route('portal.transactions.create') }}" class="btn btn-primary-modern btn-modern">
+                    <i class="bi bi-plus-circle me-2"></i>Process First Transaction
+                </a>
+                <a href="{{ route('portal.dashboard') }}" class="btn btn-outline-modern btn-modern">
+                    <i class="bi bi-arrow-left me-2"></i>Go to Dashboard
+                </a>
+            </div>
         </div>
     </div>
 @endif
 @endsection
-

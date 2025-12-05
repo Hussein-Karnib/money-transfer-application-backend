@@ -63,6 +63,15 @@
                     <a href="{{ route('admin.agents.index') }}" class="btn btn-outline-modern btn-modern">
                         <i class="bi bi-people me-2"></i>Manage Agents
                     </a>
+                    <a href="{{ route('admin.bank-accounts.index') }}" class="btn btn-outline-modern btn-modern">
+                        <i class="bi bi-bank me-2"></i>Verify Bank Accounts
+                        @php
+                            $pendingCount = App\Models\UserBankAccount::where('status', 'pending')->count();
+                        @endphp
+                        @if($pendingCount > 0)
+                            <span class="badge bg-warning badge-modern ms-2">{{ $pendingCount }}</span>
+                        @endif
+                    </a>
                     <a href="{{ route('admin.statistics') }}" class="btn btn-outline-modern btn-modern">
                         <i class="bi bi-graph-up me-2"></i>View Statistics
                     </a>

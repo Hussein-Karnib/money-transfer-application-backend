@@ -21,6 +21,13 @@
             </div>
             <div class="card-body">
                 @if($transfer)
+                    @if($statusError)
+                        <div class="alert alert-danger mb-3">
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            <strong>Status Mismatch:</strong> {{ $statusError }}
+                        </div>
+                    @endif
+                    
                     <div class="mb-3">
                         <small class="text-muted">Reference</small>
                         <p class="mb-0"><code>{{ $transfer->reference }}</code></p>
@@ -49,8 +56,18 @@
                     <div class="mb-3">
                         <small class="text-muted">Status</small>
                         <p class="mb-0">
-                            <span class="badge bg-{{ $transfer->status === 'available_for_pickup' ? 'info' : 'warning' }} badge-modern">
-                                {{ ucfirst($transfer->status) }}
+                            @php
+                                $statusColors = [
+                                    'available_for_pickup' => 'info',
+                                    'queued' => 'warning',
+                                    'paid' => 'warning',
+                                    'completed' => 'success',
+                                    'in_progress' => 'primary',
+                                ];
+                                $statusColor = $statusColors[$transfer->status] ?? 'secondary';
+                            @endphp
+                            <span class="badge bg-{{ $statusColor }} badge-modern">
+                                {{ ucfirst(str_replace('_', ' ', $transfer->status)) }}
                             </span>
                         </p>
                     </div>
@@ -66,6 +83,40 @@
                         Enter a transfer reference to view details
                     </div>
                 @endif
+                
+                @if(isset($availableTransfers) && $availableTransfers->count() > 0)
+                    <hr class="my-3">
+                    <div class="mb-2">
+                        <small class="text-muted fw-semibold">
+                            <i class="bi bi-list-check me-1"></i>
+                            Available Transfers for {{ $type === 'cash_in' ? 'Cash-In' : 'Cash-Out' }}:
+                        </small>
+                    </div>
+                    <div class="list-group" style="max-height: 300px; overflow-y: auto;">
+                        @foreach($availableTransfers as $availableTransfer)
+                            <a href="?reference={{ $availableTransfer->reference }}&type={{ $type }}" 
+                               class="list-group-item list-group-item-action {{ $transfer && $transfer->id === $availableTransfer->id ? 'active' : '' }}">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <strong><code>{{ $availableTransfer->reference }}</code></strong>
+                                        <br>
+                                        <small class="text-muted">
+                                            {{ number_format($availableTransfer->amount, 2) }} {{ $availableTransfer->currency_from }}
+                                            @if($type === 'cash_out' && $availableTransfer->beneficiary)
+                                                - {{ $availableTransfer->beneficiary->full_name }}
+                                            @elseif($type === 'cash_in' && $availableTransfer->sender)
+                                                - {{ $availableTransfer->sender->name }}
+                                            @endif
+                                        </small>
+                                    </div>
+                                    <span class="badge bg-{{ $type === 'cash_in' ? 'warning' : 'info' }} badge-modern">
+                                        {{ ucfirst(str_replace('_', ' ', $availableTransfer->status)) }}
+                                    </span>
+                                </div>
+                            </a>
+                        @endforeach
+                    </div>
+                @endif
             </div>
         </div>
     </div>
@@ -76,7 +127,7 @@
                 <i class="bi bi-pencil-square me-2"></i>Process Transfer
             </div>
             <div class="card-body">
-                <form method="POST" action="{{ route('portal.transfers.process.store') }}">
+                <form method="POST" action="{{ route('portal.transactions.store') }}">
                     @csrf
                     
                     <div class="mb-3">
@@ -105,19 +156,28 @@
                         </select>
                     </div>
 
-                    <div class="alert alert-warning">
+                    <div class="alert alert-{{ $statusError ? 'danger' : 'warning' }}">
                         <i class="bi bi-exclamation-triangle me-2"></i>
                         <strong>Important:</strong>
                         <ul class="mb-0 mt-2">
                             @if($type === 'cash_in')
-                                <li>Cash-In: Transfer must be in 'queued' or 'paid' status</li>
+                                <li><strong>Cash-In:</strong> Transfer must be in <code>'queued'</code> or <code>'paid'</code> status</li>
                                 <li>You will receive commission after processing</li>
+                                <li class="mt-2"><small>Only transfers with status: <span class="badge bg-warning">queued</span> or <span class="badge bg-warning">paid</span> can be processed</small></li>
                             @else
-                                <li>Cash-Out: Transfer must be in 'available_for_pickup' status</li>
+                                <li><strong>Cash-Out:</strong> Transfer must be in <code>'available_for_pickup'</code> status</li>
                                 <li>Verify beneficiary identity before payout</li>
+                                <li class="mt-2"><small>Only transfers with status: <span class="badge bg-info">available_for_pickup</span> can be processed</small></li>
                             @endif
                         </ul>
                     </div>
+                    
+                    @if($statusError)
+                        <div class="alert alert-danger">
+                            <i class="bi bi-x-circle me-2"></i>
+                            <strong>Cannot Process:</strong> This transfer cannot be processed because its status doesn't match the required status for {{ $type === 'cash_in' ? 'cash-in' : 'cash-out' }} operations.
+                        </div>
+                    @endif
 
                     <div class="d-grid gap-2">
                         <button type="submit" class="btn btn-{{ $type === 'cash_in' ? 'primary' : 'success' }}-modern btn-modern">
@@ -138,7 +198,7 @@
 @section('scripts')
 <script>
     // Auto-fetch transfer details when reference is entered
-    document.querySelector('input[name="transfer_reference"]').addEventListener('blur', function() {
+    document.querySelector('input[name="transfer_reference"]')?.addEventListener('blur', function() {
         const reference = this.value;
         if (reference && reference.length > 0) {
             // Reload page with reference parameter
@@ -149,4 +209,3 @@
     });
 </script>
 @endsection
-

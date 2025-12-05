@@ -58,9 +58,43 @@
                         <small class="text-muted">Upload an image from your device.</small>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label-modern">Card / Account Number</label>
-                        <input type="text" class="form-control form-control-modern" value="{{ $primaryAccount?->account_number ?? 'N/A' }}" disabled>
-                        <small class="text-muted">Pulled from your first linked bank account.</small>
+                        <label class="form-label-modern">Card Number</label>
+                        @if($primaryAccount && $primaryAccount->status === 'verified')
+                            @php
+                                $cardNumber = $primaryAccount->account_number ?? '';
+                                $digits = preg_replace('/\D/', '', $cardNumber);
+                                $masked = strlen($digits) >= 4 
+                                    ? substr($digits, 0, 4) . ' **** **** ' . substr($digits, -4)
+                                    : $cardNumber;
+                            @endphp
+                            <div class="input-group mb-2">
+                                <input type="text" class="form-control form-control-modern" value="{{ $cardNumber }}" id="cardNumberInput" readonly>
+                                <button type="button" class="btn btn-outline-secondary" onclick="copyCardNumber('{{ $cardNumber }}')">
+                                    <i class="bi bi-clipboard"></i> Copy
+                                </button>
+                            </div>
+                            <div class="mb-2">
+                                <small class="text-muted">Masked: <code>{{ $masked }}</code></small>
+                            </div>
+                            <small class="text-muted">
+                                <i class="bi bi-check-circle text-success me-1"></i>
+                                Verified card from {{ $primaryAccount->bank_name }} ({{ $primaryAccount->currency_code }})
+                                @if($primaryAccount->verified_at)
+                                    <br>Verified on: {{ $primaryAccount->verified_at->format('M d, Y H:i') }}
+                                @endif
+                            </small>
+                        @else
+                            <input type="text" class="form-control form-control-modern" value="No verified card yet" disabled>
+                            <small class="text-muted">
+                                <i class="bi bi-info-circle me-1"></i>
+                                @if($primaryAccount && $primaryAccount->status === 'pending')
+                                    Your card is pending admin approval. Once approved, it will appear here.
+                                @else
+                                    Add and verify a bank account to see your card number here.
+                                    <a href="{{ route('app.bank-accounts.index') }}" class="text-decoration-none">Manage Bank Accounts</a>
+                                @endif
+                            </small>
+                        @endif
                     </div>
                     <button type="submit" class="btn btn-primary-modern btn-modern">Save Changes</button>
                 </form>
@@ -68,4 +102,22 @@
         </div>
     </div>
 </div>
+
+<script>
+function copyCardNumber(cardNumber) {
+    navigator.clipboard.writeText(cardNumber).then(function() {
+        // Show a temporary success message
+        const btn = event.target.closest('button');
+        const originalHTML = btn.innerHTML;
+        btn.innerHTML = '<i class="bi bi-check"></i> Copied!';
+        btn.classList.add('btn-success');
+        btn.classList.remove('btn-outline-secondary');
+        setTimeout(function() {
+            btn.innerHTML = originalHTML;
+            btn.classList.remove('btn-success');
+            btn.classList.add('btn-outline-secondary');
+        }, 2000);
+    });
+}
+</script>
 @endsection

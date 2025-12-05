@@ -9,6 +9,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rules;
+use Illuminate\Support\Facades\Mail;
+use App\Mail\AccountApprovedMail;
 
 class AdminController extends Controller
 {
@@ -120,8 +122,16 @@ class AdminController extends Controller
      */
     public function approveUser(User $user)
     {
-        $user->update(['status' => 'active']);
-        
+        $wasActive = $user->status === 'active';
+
+        if (! $wasActive) {
+            $user->update(['status' => 'active']); // Assuming 'active' is the approved status for users
+
+            if ($user->email) {
+                Mail::to($user->email)->send(new AccountApprovedMail($user));
+            }
+        }
+
         return redirect()->back()->with('success', 'User approved successfully.');
     }
 }

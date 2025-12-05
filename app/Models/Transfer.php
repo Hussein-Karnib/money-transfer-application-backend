@@ -27,12 +27,16 @@ class Transfer extends Model
         'discount_amount',
         'speed',
         'estimated_delivery_at',
+        'offers',
+        'offers_total',
     ];
 
     protected $casts = [
         'initiated_at' => 'datetime',
         'completed_at' => 'datetime',
         'estimated_delivery_at' => 'datetime',
+        'offers' => 'array',
+        'offers_total' => 'decimal:2',
     ];
 
     protected $appends = [

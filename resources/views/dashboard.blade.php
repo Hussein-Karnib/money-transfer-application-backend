@@ -204,8 +204,140 @@
                         <strong>{{ auth()->user()->created_at->format('M Y') }}</strong>
                     </div>
                 </div>
+                
+                <!-- Cash In / Cash Out Section -->
+                @if(($accountStatus ?? 'pending') !== 'pending' && isset($bankAccounts) && $bankAccounts->count() > 0)
+                    <hr class="my-3">
+                    <div class="d-grid gap-2">
+                        <button type="button" class="btn btn-success btn-modern" data-bs-toggle="modal" data-bs-target="#cashInModal">
+                            <i class="bi bi-arrow-down-circle me-2"></i>Cash In
+                        </button>
+                        <button type="button" class="btn btn-primary btn-modern" data-bs-toggle="modal" data-bs-target="#cashOutModal">
+                            <i class="bi bi-arrow-up-circle me-2"></i>Cash Out
+                        </button>
+                    </div>
+                @elseif(($accountStatus ?? 'pending') === 'pending')
+                    <hr class="my-3">
+                    <div class="alert alert-warning mb-0">
+                        <small><i class="bi bi-info-circle me-1"></i>Please wait for account approval to use cash in/out features.</small>
+                    </div>
+                @else
+                    <hr class="my-3">
+                    <div class="alert alert-info mb-0">
+                        <small><i class="bi bi-info-circle me-1"></i>Please add and verify a bank account to use cash in/out features.</small>
+                    </div>
+                @endif
             </div>
         </div>
+        
+        <!-- Cash In Modal -->
+        <div class="modal fade" id="cashInModal" tabindex="-1" aria-labelledby="cashInModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="cashInModalLabel">
+                            <i class="bi bi-arrow-down-circle me-2 text-success"></i>Cash In
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <form action="{{ route('wallet.cash-in') }}" method="POST">
+                        @csrf
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <label for="cashInBankAccount" class="form-label">Select Bank Account</label>
+                                <select class="form-select" id="cashInBankAccount" name="bank_account_id" required>
+                                    <option value="">Choose a bank account...</option>
+                                    @foreach($bankAccounts ?? [] as $account)
+                                        <option value="{{ $account->id }}" data-currency="{{ $account->currency_code }}">
+                                            {{ $account->bank_name }} - {{ $account->currency_code }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label for="cashInAmount" class="form-label">Amount</label>
+                                <div class="input-group">
+                                    <input type="number" class="form-control" id="cashInAmount" name="amount" 
+                                           step="0.01" min="0.01" placeholder="0.00" required>
+                                    <span class="input-group-text" id="cashInCurrency">USD</span>
+                                </div>
+                                <small class="text-muted">Enter the amount to transfer from your bank account to your wallet.</small>
+                            </div>
+                            <input type="hidden" name="currency" id="cashInCurrencyHidden" value="USD">
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-success">Cash In</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Cash Out Modal -->
+        <div class="modal fade" id="cashOutModal" tabindex="-1" aria-labelledby="cashOutModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="cashOutModalLabel">
+                            <i class="bi bi-arrow-up-circle me-2 text-primary"></i>Cash Out
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <form action="{{ route('wallet.cash-out') }}" method="POST">
+                        @csrf
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <label for="cashOutBankAccount" class="form-label">Select Bank Account</label>
+                                <select class="form-select" id="cashOutBankAccount" name="bank_account_id" required>
+                                    <option value="">Choose a bank account...</option>
+                                    @foreach($bankAccounts ?? [] as $account)
+                                        <option value="{{ $account->id }}" data-currency="{{ $account->currency_code }}">
+                                            {{ $account->bank_name }} - {{ $account->currency_code }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label for="cashOutAmount" class="form-label">Amount</label>
+                                <div class="input-group">
+                                    <input type="number" class="form-control" id="cashOutAmount" name="amount" 
+                                           step="0.01" min="0.01" max="{{ $accountBalance ?? 0 }}" 
+                                           placeholder="0.00" required>
+                                    <span class="input-group-text" id="cashOutCurrency">{{ $balanceCurrency ?? 'USD' }}</span>
+                                </div>
+                                <small class="text-muted">
+                                    Available balance: <strong>{{ number_format($accountBalance ?? 0, 2) }} {{ $balanceCurrency ?? 'USD' }}</strong>
+                                </small>
+                            </div>
+                            <input type="hidden" name="currency" id="cashOutCurrencyHidden" value="{{ $balanceCurrency ?? 'USD' }}">
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-primary">Cash Out</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <script>
+            // Update currency when bank account is selected (Cash In)
+            document.getElementById('cashInBankAccount')?.addEventListener('change', function() {
+                const selected = this.options[this.selectedIndex];
+                const currency = selected.dataset.currency || 'USD';
+                document.getElementById('cashInCurrency').textContent = currency;
+                document.getElementById('cashInCurrencyHidden').value = currency;
+            });
+            
+            // Update currency when bank account is selected (Cash Out)
+            document.getElementById('cashOutBankAccount')?.addEventListener('change', function() {
+                const selected = this.options[this.selectedIndex];
+                const currency = selected.dataset.currency || '{{ $balanceCurrency ?? 'USD' }}';
+                document.getElementById('cashOutCurrency').textContent = currency;
+                document.getElementById('cashOutCurrencyHidden').value = currency;
+            });
+        </script>
     </div>
 </div>
 @endsection

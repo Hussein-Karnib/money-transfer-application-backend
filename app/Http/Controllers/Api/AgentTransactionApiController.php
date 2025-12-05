@@ -12,6 +12,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
+use App\Mail\TransactionCompletedMail;
 
 class AgentTransactionApiController extends Controller
 {
@@ -55,6 +57,7 @@ class AgentTransactionApiController extends Controller
         ]);
 
         $transfer = Transfer::where('reference', $validated['transfer_reference'])->firstOrFail();
+        $wasCompleted = $transfer->status === 'completed';
 
         if (! $this->canHandleTransfer($transfer, $validated['type'])) {
             return response()->json([
@@ -114,11 +117,23 @@ class AgentTransactionApiController extends Controller
             return $agentTransaction->load('transfer');
         });
 
+        $transfer->refresh()->loadMissing(['sender', 'beneficiary', 'currencyFrom', 'currencyTo']);
+
         // Person 4: send user-facing notifications
         if ($validated['type'] === 'cash_out') {
             NotificationHelper::transferCashedOut($transfer);
         } elseif ($validated['type'] === 'cash_in' && $newStatus === 'available_for_pickup') {
             NotificationHelper::transferReadyForPickup($transfer);
+        }
+
+        if (! $wasCompleted && $newStatus === 'completed' && $transfer->sender?->email) {
+            Mail::to($transfer->sender->email)->send(new TransactionCompletedMail($transfer));
+        }
+
+        $beneficiaryDetails = $transfer->beneficiary?->payout_details ?? [];
+        $beneficiaryEmail = is_array($beneficiaryDetails) ? ($beneficiaryDetails['email'] ?? null) : null;
+        if (! $wasCompleted && $newStatus === 'completed' && $beneficiaryEmail) {
+            Mail::to($beneficiaryEmail)->send(new TransactionCompletedMail($transfer));
         }
 
         return response()->json([
@@ -205,4 +220,3 @@ class AgentTransactionApiController extends Controller
         ];
     }
 }
-
