@@ -79,7 +79,7 @@
         </div>
     </div>
 
-    <div class="col-lg-3">
+    <div class="col-lg-3 layout-stack">
         <div class="card-modern">
             <div class="card-header">
                 <i class="bi bi-wallet2 me-2"></i>Your Wallet
@@ -97,7 +97,7 @@
         </div>
 
         @if($purchasedOffers->count() > 0)
-            <div class="card-modern mt-4">
+            <div class="card-modern">
                 <div class="card-header">
                     <i class="bi bi-check-circle me-2"></i>Your Active Offers
                 </div>
@@ -130,4 +130,3 @@
     </div>
 </div>
 @endsection
-

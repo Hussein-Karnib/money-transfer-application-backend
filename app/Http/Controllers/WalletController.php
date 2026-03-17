@@ -197,21 +197,6 @@ class WalletController extends Controller
                 }
             }
 
-                // Log audit
-                AuditLogController::logSystemAction(
-                    $user->id,
-                    'cash_out',
-                    'wallet_transactions',
-                    $transaction->id,
-                    [
-                        'amount' => $amount,
-                        'currency' => $currency,
-                        'bank_account' => $bankAccount->bank_name,
-                        'status' => 'completed',
-                    ]
-                );
-            });
-
             return redirect()->route('dashboard')
                 ->with('success', "Cash-out successful! {$request->amount} {$request->currency} has been sent to your bank account. Your balance has been updated.");
         } catch (\Exception $e) {
@@ -227,4 +212,3 @@ class WalletController extends Controller
     }
 
 }
-

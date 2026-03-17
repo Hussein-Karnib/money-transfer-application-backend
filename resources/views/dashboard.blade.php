@@ -131,7 +131,7 @@
         </div>
     </div>
 
-    <div class="col-lg-4">
+    <div class="col-lg-4 layout-stack">
         <div class="card-modern">
             <div class="card-header">
                 <i class="bi bi-lightning-charge me-2"></i>Quick Actions
@@ -160,7 +160,7 @@
             </div>
         </div>
 
-        <div class="card-modern mt-4">
+        <div class="card-modern">
             <div class="card-header">
                 <i class="bi bi-graph-up me-2"></i>Account Summary
             </div>

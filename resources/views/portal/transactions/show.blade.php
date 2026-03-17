@@ -116,7 +116,7 @@
         </div>
     </div>
 
-    <div class="col-lg-4">
+    <div class="col-lg-4 layout-stack">
         <div class="card-modern">
             <div class="card-header">
                 <i class="bi bi-shop me-2"></i>Agent Information
@@ -137,7 +137,7 @@
             </div>
         </div>
 
-        <div class="card-modern mt-4">
+        <div class="card-modern">
             <div class="card-header">
                 <i class="bi bi-lightning-charge me-2"></i>Quick Actions
             </div>
@@ -158,4 +158,3 @@
     </div>
 </div>
 @endsection
-

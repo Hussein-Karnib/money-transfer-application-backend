@@ -155,7 +155,7 @@
     <nav class="navbar navbar-expand-lg navbar-light navbar-custom fixed-top">
         <div class="container">
             <a class="navbar-brand fw-bold" href="{{ route('home') }}" style="color: #667eea; font-size: 1.5rem;">
-                <i class="bi bi-send-fill"></i> MoneyTransfer
+                <i class="bi bi-send-fill"></i> Makdous
             </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
@@ -320,7 +320,7 @@
         <div class="container">
             <div class="row">
                 <div class="col-md-6">
-                    <h5 class="mb-3"><i class="bi bi-send-fill"></i> MoneyTransfer</h5>
+                    <h5 class="mb-3"><i class="bi bi-send-fill"></i> Makdous</h5>
                     <p class="text-muted">Fast, secure, and reliable money transfer services worldwide.</p>
                 </div>
                 <div class="col-md-6 text-md-end">

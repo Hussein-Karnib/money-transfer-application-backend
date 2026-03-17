@@ -92,6 +92,8 @@
             box-shadow: var(--shadow-lg);
             transition: all 0.3s ease;
             overflow: hidden;
+            display: flex;
+            flex-direction: column;
         }
 
         .card-modern:hover {
@@ -106,10 +108,42 @@
             padding: 1.25rem 1.5rem;
             font-weight: 600;
             font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            flex-wrap: wrap;
         }
 
         .card-modern .card-body {
             padding: 1.5rem;
+            flex: 1;
+        }
+
+        .card-modern .card-header .btn {
+            margin-left: auto;
+            white-space: nowrap;
+        }
+
+        /* Consistent card grid sizing */
+        .row.g-4 > [class*='col-'] {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .row.g-4 > [class*='col-'] > .card-modern,
+        .row.g-4 > [class*='col-'] > .stat-card {
+            width: 100%;
+            height: 100%;
+        }
+
+        .layout-stack {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .layout-stack > .card-modern {
+            margin-top: 0 !important;
         }
 
         /* Buttons */
@@ -250,7 +284,6 @@
 
         .table-modern tbody tr:hover {
             background: #f7fafc;
-            transform: scale(1.01);
         }
 
         .table-modern tbody td {
@@ -350,6 +383,17 @@
             }
         }
 
+        @media (min-width: 992px) {
+            .layout-stack {
+                height: 100%;
+            }
+
+            .layout-stack > .card-modern {
+                flex: 1 1 0;
+                min-height: 0;
+            }
+        }
+
         /* Loading Spinner */
         .spinner-modern {
             border: 3px solid rgba(102, 126, 234, 0.1);
@@ -369,7 +413,7 @@
     <nav class="navbar navbar-expand-lg navbar-modern">
         <div class="container-fluid">
             <a class="navbar-brand" href="{{ auth()->check() && auth()->user()->role && strtolower(auth()->user()->role->name) === 'admin' ? route('admin.dashboard') : route('dashboard') }}">
-                <i class="bi bi-send-fill"></i> MoneyTransfer
+                <i class="bi bi-send-fill"></i> Makdous
             </a>
 
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
